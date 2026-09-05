@@ -89,7 +89,7 @@
   .field label{font-size:.78rem; color:var(--ink-dim);}
   .field input{
     background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
-    color:var(--ink); padding:8px 10px; font-family:inherit; width:130px;
+    color:var(--ink); padding:8px 10px; font-family:inherit; width:110px;
   }
   .field input:focus{outline:1px solid var(--gold); border-color:var(--gold);}
   
@@ -104,7 +104,7 @@
   .btn-del{background:transparent; color:var(--red); border:1px solid rgba(248,113,113,.3); padding:5px 10px; font-size:.8rem;}
 
   .gold-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
-  @media(max-width:600px){.gold-grid{grid-template-columns:1fr;}}
+  @media(max-width:700px){.gold-grid{grid-template-columns:1fr;}}
   .gold-card{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
   .gold-card h3{color:var(--gold); font-size:1rem; margin-bottom:10px;}
   .gold-fields{display:flex; gap:10px; flex-wrap:wrap;}
@@ -167,7 +167,7 @@
   <!-- GOLD SECTION -->
   <section>
     <h2>🪙 الذهب (عيار 21 وعيار 24)</h2>
-    <div class="section-sub">يمكنك تحديث سعر الذهب تلقائيًا حسب السعر العالمي وسعر الصرف، أو إدخال الأسعار والكميات يدويًا.</div>
+    <div class="section-sub">أدخل متوسط سعر الشراء لحساب أرباحك الحقيقية. زر التحديث يغير "السعر الحالي" فقط من النت.</div>
     
     <div style="margin-bottom: 16px;">
       <button class="btn-primary" onclick="updateGoldPrices()">🔄 تحديث أسعار الذهب تلقائيًا من النت</button>
@@ -184,7 +184,11 @@
             <input id="g24_qty" type="number" step="0.01" placeholder="0" oninput="renderAll()">
           </div>
           <div class="field">
-            <label>سعر الجرام (ج.م)</label>
+            <label>متوسط الشراء (ج.م)</label>
+            <input id="g24_buy" type="number" step="0.01" placeholder="0.00" oninput="renderAll()">
+          </div>
+          <div class="field">
+            <label>السعر الحالي (ج.م)</label>
             <input id="g24_price" type="number" step="0.01" placeholder="0.00" oninput="renderAll()">
           </div>
         </div>
@@ -199,7 +203,11 @@
             <input id="g21_qty" type="number" step="0.01" placeholder="0" oninput="renderAll()">
           </div>
           <div class="field">
-            <label>سعر الجرام (ج.م)</label>
+            <label>متوسط الشراء (ج.م)</label>
+            <input id="g21_buy" type="number" step="0.01" placeholder="0.00" oninput="renderAll()">
+          </div>
+          <div class="field">
+            <label>السعر الحالي (ج.م)</label>
             <input id="g21_price" type="number" step="0.01" placeholder="0.00" oninput="renderAll()">
           </div>
         </div>
@@ -240,12 +248,14 @@ const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 let stocks = load('pf_stocks', []);
 let fixedIncome = load('pf_fixed', []);
-let goldData = load('pf_gold', {g21_qty:0, g21_price:0, g24_qty:0, g24_price:0});
+let goldData = load('pf_gold', {g21_qty:0, g21_buy:0, g21_price:0, g24_qty:0, g24_buy:0, g24_price:0});
 
 // Load Gold Inputs
 document.getElementById('g21_qty').value = goldData.g21_qty || '';
+document.getElementById('g21_buy').value = goldData.g21_buy || '';
 document.getElementById('g21_price').value = goldData.g21_price || '';
 document.getElementById('g24_qty').value = goldData.g24_qty || '';
+document.getElementById('g24_buy').value = goldData.g24_buy || '';
 document.getElementById('g24_price').value = goldData.g24_price || '';
 
 const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2}) + ' ج.م';
@@ -305,47 +315,61 @@ async function updateGoldPrices(){
   try {
     let xauUsdPerOunce = null;
 
-    // المصدر الأول: API مجاني يدعم طلبات المتصفح المباشرة
     try {
       const res = await fetch('https://api.gold-api.com/price/XAU');
       if(res.ok) {
         const data = await res.json();
-        xauUsdPerOunce = data.price;
+        if(data && data.price) xauUsdPerOunce = data.price;
       }
-    } catch(e) {}
+    } catch(e){}
 
-    // المصدر الثاني (احتياطي): الجلب عبر سيرفر وسيط لتجاوز حظر المتصفح
     if(!xauUsdPerOunce) {
       const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
       const res = await fetch(proxyUrl);
       if(res.ok) {
         const data = await res.json();
-        xauUsdPerOunce = data.items[0].xauPrice;
+        if(data && data.items && data.items[0] && data.items[0].xauPrice) {
+          xauUsdPerOunce = data.items[0].xauPrice;
+        }
       }
     }
 
-    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب');
+    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب من المصادر');
 
-    // جلب سعر صرف الدولار مقابل الجنيه
-    const fxResp = await fetch('https://open.er-api.com/v6/latest/USD');
-    if(!fxResp.ok) throw new Error('تعذر جلب سعر الصرف');
-    const fxJson = await fxResp.json();
-    const usdToEgp = fxJson.rates.EGP;
+    let usdToEgp = null;
+    try {
+      const fxResp = await fetch('https://open.er-api.com/v6/latest/USD');
+      if(fxResp.ok) {
+        const fxJson = await fxResp.json();
+        if(fxJson && fxJson.rates && fxJson.rates.EGP) usdToEgp = fxJson.rates.EGP;
+      }
+    } catch(e){}
 
-    // حساب سعر جرام عيار 24 وعيار 21 (الأونصة = 31.1035 جرام)
+    if(!usdToEgp) {
+      const fxProxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.exchangerate-api.com/v4/latest/USD');
+      const fxResp = await fetch(fxProxy);
+      if(fxResp.ok) {
+        const fxJson = await fxResp.json();
+        if(fxJson && fxJson.rates && fxJson.rates.EGP) usdToEgp = fxJson.rates.EGP;
+      }
+    }
+
+    if(!usdToEgp) throw new Error('تعذر جلب سعر صرف الجنيه المصري');
+
     const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
     const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
 
+    // تحديث السعر الحالي فقط مع الإبقاء على سعر الشراء كما هو
     document.getElementById('g24_price').value = pricePerGram24Egp.toFixed(2);
     document.getElementById('g21_price').value = pricePerGram21Egp.toFixed(2);
     
     renderAll();
-    statusEl.textContent = 'تم التحديث بنجاح! ✅ (سعر الذهب العالمي محوّل للجنيه)';
+    statusEl.textContent = 'تم تحديث الأسعار الحالية بنجاح! ✅';
     statusEl.className = 'status-line ok';
 
   } catch(err) {
     console.error(err);
-    statusEl.textContent = 'تعذّر جلب البيانات، تأكد من الاتصال بالإنترنت.';
+    statusEl.textContent = 'تعذّر جلب البيانات تلقائيًا. أدخل الأسعار يدويًا.';
     statusEl.className = 'status-line err';
   }
 }
@@ -353,11 +377,17 @@ async function updateGoldPrices(){
 // ---------- Render All ----------
 function renderAll(){
   // Save Gold inputs
+  const g21_qty = parseFloat(document.getElementById('g21_qty').value) || 0;
+  const g21_price = parseFloat(document.getElementById('g21_price').value) || 0;
+  const g21_buy = parseFloat(document.getElementById('g21_buy').value) || g21_price;
+
+  const g24_qty = parseFloat(document.getElementById('g24_qty').value) || 0;
+  const g24_price = parseFloat(document.getElementById('g24_price').value) || 0;
+  const g24_buy = parseFloat(document.getElementById('g24_buy').value) || g24_price;
+
   goldData = {
-    g21_qty: parseFloat(document.getElementById('g21_qty').value) || 0,
-    g21_price: parseFloat(document.getElementById('g21_price').value) || 0,
-    g24_qty: parseFloat(document.getElementById('g24_qty').value) || 0,
-    g24_price: parseFloat(document.getElementById('g24_price').value) || 0,
+    g21_qty, g21_buy: parseFloat(document.getElementById('g21_buy').value) || 0, g21_price,
+    g24_qty, g24_buy: parseFloat(document.getElementById('g24_buy').value) || 0, g24_price
   };
   save('pf_gold', goldData);
 
@@ -406,13 +436,14 @@ function renderAll(){
     fbody.appendChild(tr);
   });
 
-  // Calculate Gold Value
-  const goldValue = (goldData.g21_qty * goldData.g21_price) + (goldData.g24_qty * goldData.g24_price);
+  // Gold Values
+  const goldValue = (g21_qty * g21_price) + (g24_qty * g24_price);
+  const goldCost = (g21_qty * g21_buy) + (g24_qty * g24_buy);
 
-  // Totals
+  // Portfolio Totals
   const totalValue = stocksValue + goldValue + fixedTotal;
-  const totalInvested = stocksInvested + goldValue + fixedTotal;
-  const growth = stocksInvested ? ((stocksValue - stocksInvested)/stocksInvested*100) : 0;
+  const totalInvested = stocksInvested + goldCost + fixedTotal;
+  const totalGrowth = totalInvested ? ((totalValue - totalInvested) / totalInvested * 100) : 0;
 
   document.getElementById('totalValue').textContent = fmt(totalValue);
   document.getElementById('sumStocks').textContent = fmt(stocksValue);
@@ -420,9 +451,10 @@ function renderAll(){
   document.getElementById('sumFixed').textContent = fmt(fixedTotal);
   document.getElementById('sumInvested').textContent = fmt(totalInvested);
 
+  // Total Portfolio Growth Pill
   const pill = document.getElementById('growthPill');
-  pill.textContent = (growth>=0?'+':'') + growth.toFixed(2) + '% (نمو الأسهم)';
-  pill.className = 'growth-pill ' + (growth>=0?'up':'down');
+  pill.textContent = (totalGrowth>=0?'+':'') + totalGrowth.toFixed(2) + '% (نمو المحفظة)';
+  pill.className = 'growth-pill ' + (totalGrowth>=0?'up':'down');
 }
 
 renderAll();
