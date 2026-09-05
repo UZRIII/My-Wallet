@@ -237,12 +237,18 @@
   <!-- STOCKS -->
   <section>
     <h2>📈 محفظة الأسهم</h2>
-    <div class="section-sub">اختر السهم ليتحدد السعر تلقائياً، وأدخل الكمية ومتوسط الشراء لحسابه وإضافته للثروة.</div>
+    <div class="section-sub">أهم أسعار الأسهم المُضافة هنا تستمد تلقائياً من (سعر الإغلاق) بجدول البورصة المصرية.</div>
+    
+    <div style="margin-bottom: 16px;">
+      <button class="btn-primary" onclick="updateStocksFromEGX()">🔄 تحديث الأسعار من البورصة</button>
+      <div id="stocksStatus" class="status-line"></div>
+    </div>
+
     <div class="table-scroll">
     <table id="stocksTable">
       <thead>
         <tr>
-          <th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالي</th>
+          <th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>سعر الإغلاق الحالي</th>
           <th>السعر المستهدف</th><th>القيمة الحالية</th><th>الربح/الخسارة</th><th></th>
         </tr>
       </thead>
@@ -263,7 +269,7 @@
       </div>
       <div class="field"><label>الكمية</label><input id="s_qty" type="number" placeholder="0"></div>
       <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" step="0.01" placeholder="0.00"></div>
-      <div class="field"><label>السعر الحالي (تلقائي)</label><input id="s_cur" type="number" step="0.01" readonly placeholder="0.00"></div>
+      <div class="field"><label>السعر الحالي (تلقائي)</label><input id="s_cur" type="number" step="0.01" readonly placeholder="0.00" title="يتم تحديثه أوتوماتيكياً"></div>
       <div class="field"><label>السعر المستهدف</label><input id="s_target" type="number" step="0.01" placeholder="0.00"></div>
       <button class="btn-primary" onclick="addStock()">إضافة سهم</button>
     </div>
@@ -374,14 +380,102 @@ function initTheme(){
   setTheme(savedTheme);
 }
 
-// ---------- Stock Prices Dictionary ----------
+// ---------- Stock Prices Dictionary (Default Fallback) ----------
 const STOCK_PRICES = {
-  "ORAS - أوراسكوم كونستراكشون": 285.00,
+  "ORAS - أوراسكوم كونستراكشون": 850.02, 
   "ETEL - المصرية للاتصالات": 38.50,
   "EGAL - مصر للألومنيوم": 74.00,
   "ADIB - مصرف أبوظبي الإسلامي": 41.50,
   "EIFH - إيبيكو للأدوية": 46.00
 };
+
+// ---------- EGX Price Auto Fetcher (Web Scraper via Proxy) ----------
+async function updateStocksFromEGX() {
+    const statusEl = document.getElementById('stocksStatus');
+    statusEl.textContent = 'جاري البحث عن أسعار الإغلاق من موقع البورصة (EGX)... ⏳';
+    statusEl.className = 'status-line';
+
+    try {
+        // نستخدم AllOrigins كوكيل (Proxy) لتخطي مشكلة الـ CORS
+        const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.egx.com.eg/ar/prices.aspx');
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('فشل الاتصال');
+        
+        const data = await response.json();
+        const html = data.contents;
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // البحث عن عناوين الأعمدة في الجدول
+        const headers = Array.from(doc.querySelectorAll('th, .tableHead'));
+        // استهداف عمود (سعر الاغلاق)
+        const closePriceIdx = headers.findIndex(th => th.textContent.includes('سعر الاغلاق') || th.textContent.includes('سعر الإغلاق'));
+        const nameIdx = headers.findIndex(th => th.textContent.includes('اسم الشركة'));
+        
+        if (closePriceIdx === -1 || nameIdx === -1) {
+            throw new Error('لم نتمكن من تحديد هيكل جدول الأسعار في البورصة.');
+        }
+
+        const rows = doc.querySelectorAll('table tr');
+        
+        // ربط الأسماء المُصغرة بأسماء البورصة
+        const keywordMap = {
+            "اوراسكوم كونستراكشون": "ORAS - أوراسكوم كونستراكشون",
+            "المصرية للاتصالات": "ETEL - المصرية للاتصالات",
+            "مصر للالومنيوم": "EGAL - مصر للألومنيوم",
+            "مصر للألومنيوم": "EGAL - مصر للألومنيوم",
+            "مصرف ابو ظبي الاسلامي": "ADIB - مصرف أبوظبي الإسلامي",
+            "ايبيكو": "EIFH - إيبيكو للأدوية",
+            "المصرية الدولية للصناعات الدوائية": "EIFH - إيبيكو للأدوية"
+        };
+
+        let updatedCount = 0;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > Math.max(closePriceIdx, nameIdx)) {
+                const companyName = cells[nameIdx].textContent.trim();
+                const closePriceText = cells[closePriceIdx].textContent.trim();
+                
+                // تنظيف الرقم من الفواصل
+                const cleanPrice = parseFloat(closePriceText.replace(/,/g, ''));
+                
+                if (!isNaN(cleanPrice)) {
+                    for (const [keyword, fullId] of Object.entries(keywordMap)) {
+                        if (companyName.includes(keyword)) {
+                            STOCK_PRICES[fullId] = cleanPrice;
+                            updatedCount++;
+                        }
+                    }
+                }
+            }
+        });
+
+        if (updatedCount > 0) {
+            statusEl.textContent = '✅ تم تحديث الأسعار بنجاح بناءً على (سعر الإغلاق)!';
+            statusEl.className = 'status-line ok';
+            
+            // تحديث الأسهم الموجودة بالمحفظة
+            stocks.forEach(s => {
+                if (STOCK_PRICES[s.name]) {
+                    s.cur = STOCK_PRICES[s.name];
+                }
+            });
+            save('pf_stocks', stocks);
+            
+            onStockSelectChange(); // تحديث الخانة السفلية 
+            renderAll(); // إعادة رسم الجدول
+        } else {
+             throw new Error('لم يتم العثور على الأسهم في الجدول (تأكد من فتح الجلسة).');
+        }
+
+    } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'تعذر جلب الأسعار التلقائي: ' + err.message;
+        statusEl.className = 'status-line err';
+    }
+}
 
 function onStockSelectChange(){
   const selectedStock = document.getElementById('s_name').value;
@@ -546,7 +640,18 @@ function addStock(){
   const cur = parseFloat(document.getElementById('s_cur').value) || 0;
   const target = parseFloat(document.getElementById('s_target').value) || 0;
   if(!qty || !avg){ alert('من فضلك أدخل الكمية ومتوسط الشراء'); return; }
-  stocks.push({id:Date.now(), name, qty, avg, cur, target});
+  
+  // تحديث السهم إن كان موجوداً مسبقاً بدلاً من التكرار
+  const existingStockIndex = stocks.findIndex(s => s.name === name);
+  if(existingStockIndex >= 0) {
+      stocks[existingStockIndex].qty += qty;
+      stocks[existingStockIndex].avg = avg; // التحديث بمتوسط الشراء الجديد
+      stocks[existingStockIndex].cur = cur;
+      stocks[existingStockIndex].target = target;
+  } else {
+      stocks.push({id:Date.now(), name, qty, avg, cur, target});
+  }
+  
   save('pf_stocks', stocks);
   ['s_qty','s_avg','s_target'].forEach(id=>document.getElementById(id).value='');
   renderAll();
@@ -682,6 +787,7 @@ function renderAll(){
   let stocksValue = 0, stocksInvested = 0;
 
   stocks.forEach(s=>{
+    // الأولوية دائمًا للسعر المجلوب من الـ API
     const currentStockPrice = STOCK_PRICES[s.name] || s.cur || 0;
     s.cur = currentStockPrice;
 
@@ -754,11 +860,16 @@ function renderAll(){
   renderChart(stocksValue, goldTotalVal, fixedTotal);
 }
 
-// Initializing
-initTheme();
-onStockSelectChange();
-initGoldInputs();
-renderAll();
+// Initializing on Page Load
+window.onload = function() {
+  initTheme();
+  initGoldInputs();
+  renderAll();
+  
+  // تشغيل جلب الأسعار تلقائياً في الخلفية عند فتح الصفحة
+  updateStocksFromEGX();
+};
+
 </script>
 </body>
 </html>
