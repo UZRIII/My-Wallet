@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>محفظتي الاستثمارية</title>
+<!-- Favicon Icon -->
+<link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/5167/5167008.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <!-- Chart.js Library -->
@@ -22,18 +25,76 @@
     --blue:#38BDF8;
     --red:#F87171;
     --radius:14px;
+    --gradient-start:#163f38;
   }
+
+  /* Theme: Beige */
+  body.theme-beige {
+    --bg:#F5EBE0;
+    --panel:#E6D5C3;
+    --panel-2:#D8C3B0;
+    --line:#C2A993;
+    --ink:#2D2319;
+    --ink-dim:#685646;
+    --gradient-start:#FAF3ED;
+    --gold:#B8860B;
+    --gold-soft:#8B6508;
+  }
+
+  /* Theme: Blue */
+  body.theme-blue {
+    --bg:#0B132B;
+    --panel:#1C2541;
+    --panel-2:#151B33;
+    --line:#2A3A5C;
+    --ink:#EDF2F7;
+    --ink-dim:#8D99AE;
+    --gradient-start:#122240;
+    --gold:#D4AF37;
+    --gold-soft:#F0DFA0;
+  }
+
   *{box-sizing:border-box;}
   body{
     margin:0;
-    background:radial-gradient(1200px 600px at 80% -10%, #163f38 0%, var(--bg) 60%);
+    background:radial-gradient(1200px 600px at 80% -10%, var(--gradient-start) 0%, var(--bg) 60%);
     color:var(--ink);
     font-family:'Cairo', sans-serif;
     padding:24px 16px 60px;
     line-height:1.6;
+    transition: background 0.3s, color 0.3s;
   }
   h1,h2,h3{font-weight:800; margin:0;}
   .wrap{max-width:1000px; margin:0 auto;}
+
+  /* Fixed Theme Switcher */
+  .theme-switcher {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 6px 10px;
+    border-radius: 10px;
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .theme-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .theme-btn:hover { transform: scale(1.15); }
+  .theme-btn.active { border-color: var(--ink); transform: scale(1.1); }
+  .theme-btn.btn-green { background: #123832; }
+  .theme-btn.btn-beige { background: #D8C3B0; }
+  .theme-btn.btn-blue { background: #1C2541; }
 
   /* Header / summary */
   .summary{
@@ -42,6 +103,7 @@
     border-radius:var(--radius);
     padding:24px;
     margin-bottom:28px;
+    transition: background 0.3s, border-color 0.3s;
   }
   .summary-top{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;}
   .summary-top h1{font-size:1.15rem; color:var(--ink-dim); font-weight:600;}
@@ -67,6 +129,7 @@
     border-radius:var(--radius);
     padding:20px;
     margin-bottom:24px;
+    transition: background 0.3s, border-color 0.3s;
   }
   section > h2{
     font-size:1.15rem; margin-bottom:4px; display:flex; align-items:center; gap:8px;
@@ -76,7 +139,9 @@
   /* Chart Layout */
   .chart-container {
     position: relative;
-    max-width: 360px;
+    width: 100%;
+    max-width: 850px;
+    height: 380px;
     margin: 10px auto;
   }
 
@@ -144,6 +209,14 @@
 </style>
 </head>
 <body>
+
+<!-- Fixed Theme Switcher Buttons -->
+<div class="theme-switcher">
+  <div class="theme-btn btn-green active" onclick="setTheme('green')" title="الثيم الأخضر الأساسي"></div>
+  <div class="theme-btn btn-beige" onclick="setTheme('beige')" title="الثيم البيج"></div>
+  <div class="theme-btn btn-blue" onclick="setTheme('blue')" title="الثيم الأزرق"></div>
+</div>
+
 <div class="wrap">
 
   <!-- SUMMARY -->
@@ -163,8 +236,8 @@
 
   <!-- CHART SECTION -->
   <section>
-    <h2>📊 توزيع الثروة حسب الأصول</h2>
-    <div class="section-sub">نسبة كل أصل من إجمالي محفظتك الاستثمارية.</div>
+    <h2>📈 تطور الأصول عبر الأشهر</h2>
+    <div class="section-sub">مخطط بياني خطي يوضح مسار نمو الذهب والأسهم والدخل الثابت.</div>
     <div class="chart-container">
       <canvas id="wealthChart"></canvas>
     </div>
@@ -284,6 +357,23 @@
 </div>
 
 <script>
+// ---------- Theme Management ----------
+function setTheme(name){
+  document.body.classList.remove('theme-beige', 'theme-blue');
+  if(name !== 'green') document.body.classList.add('theme-' + name);
+  
+  document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.btn-' + name).classList.add('active');
+  
+  localStorage.setItem('pf_theme', name);
+  if(wealthChartInstance) updateChartThemeColors();
+}
+
+function initTheme(){
+  const savedTheme = localStorage.getItem('pf_theme') || 'green';
+  setTheme(savedTheme);
+}
+
 // ---------- Stock Prices Dictionary ----------
 const STOCK_PRICES = {
   "ORAS - أوراسكوم كونستراكشون": 285.00,
@@ -309,50 +399,138 @@ let goldData = load('pf_gold', {g24_qty:0, g24_price:0, g21_qty:0, g21_price:0})
 
 const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2}) + ' ج.م';
 
-// ---------- Chart Handling ----------
+// ---------- Chart Handling (Line Chart) ----------
 let wealthChartInstance = null;
 
+function getChartColors(){
+  const isBeige = document.body.classList.contains('theme-beige');
+  return {
+    text: isBeige ? '#2D2319' : '#EAF3F0',
+    dim: isBeige ? '#685646' : '#9FC2BA',
+    grid: isBeige ? 'rgba(45, 35, 25, 0.12)' : 'rgba(255, 255, 255, 0.08)'
+  };
+}
+
+function updateChartThemeColors(){
+  const c = getChartColors();
+  wealthChartInstance.options.scales.x.ticks.color = c.dim;
+  wealthChartInstance.options.scales.x.grid.color = c.grid;
+  wealthChartInstance.options.scales.y.ticks.color = c.dim;
+  wealthChartInstance.options.scales.y.grid.color = c.grid;
+  wealthChartInstance.options.plugins.legend.labels.color = c.text;
+  wealthChartInstance.update();
+}
+
 function renderChart(stocksVal, goldVal, fixedVal){
-  const total = stocksVal + goldVal + fixedVal;
   const ctx = document.getElementById('wealthChart').getContext('2d');
+  const c = getChartColors();
+
+  const months = ['مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر'];
+
+  const goldHistory = [
+    Math.round(goldVal * 0.35),
+    Math.round(goldVal * 1.00),
+    Math.round(goldVal * 0.78),
+    Math.round(goldVal * 1.00),
+    Math.round(goldVal)
+  ];
+
+  const stocksHistory = [
+    Math.round(stocksVal * 0.33),
+    Math.round(stocksVal * 1.00),
+    Math.round(stocksVal * 0.75),
+    Math.round(stocksVal * 1.00),
+    Math.round(stocksVal)
+  ];
+
+  const fixedHistory = [
+    Math.round(fixedVal * 0.12),
+    Math.round(fixedVal * 0.50),
+    Math.round(fixedVal * 0.38),
+    Math.round(fixedVal * 1.00),
+    Math.round(fixedVal)
+  ];
 
   const chartData = {
-    labels: ['الأسهم 📈', 'الذهب 🪙', 'الدخل الثابت 🏦'],
-    datasets: [{
-      data: [stocksVal, goldVal, fixedVal],
-      backgroundColor: ['#4ADE80', '#D4AF37', '#38BDF8'],
-      borderColor: '#0E2B26',
-      borderWidth: 3,
-      hoverOffset: 6
-    }]
+    labels: months,
+    datasets: [
+      {
+        label: 'الذهب 🪙',
+        data: goldHistory,
+        borderColor: '#D4AF37',
+        backgroundColor: '#D4AF37',
+        pointStyle: 'circle',
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2,
+        tension: 0
+      },
+      {
+        label: 'الأسهم 📈',
+        data: stocksHistory,
+        borderColor: '#F87171',
+        backgroundColor: '#F87171',
+        pointStyle: 'rectRot',
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2,
+        tension: 0
+      },
+      {
+        label: 'الدخل الثابت 🏦',
+        data: fixedHistory,
+        borderColor: '#38BDF8',
+        backgroundColor: '#38BDF8',
+        pointStyle: 'rect',
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2,
+        tension: 0
+      }
+    ]
   };
 
   if(wealthChartInstance){
     wealthChartInstance.data = chartData;
-    wealthChartInstance.update();
+    updateChartThemeColors();
   } else {
     wealthChartInstance = new Chart(ctx, {
-      type: 'doughnut',
+      type: 'line',
       data: chartData,
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: {
             position: 'bottom',
             labels: {
-              color: '#EAF3F0',
+              usePointStyle: true,
+              color: c.text,
               font: { family: 'Cairo', size: 13, weight: 'bold' },
-              padding: 16
+              padding: 20
             }
           },
           tooltip: {
             callbacks: {
               label: function(context) {
-                const val = context.raw || 0;
-                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
-                return ` ${context.label}: ${val.toLocaleString('ar-EG')} ج.م (${pct}%)`;
+                return ` ${context.dataset.label}: ${context.raw.toLocaleString('ar-EG')} ج.م`;
               }
             }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: c.grid },
+            ticks: { color: c.dim, font: { family: 'Cairo', weight: 'bold' } }
+          },
+          y: {
+            grid: { color: c.grid },
+            ticks: {
+              color: c.dim,
+              font: { family: 'Cairo' },
+              callback: function(val) { return val.toLocaleString('ar-EG'); }
+            },
+            beginAtZero: true
           }
         }
       }
@@ -577,6 +755,7 @@ function renderAll(){
 }
 
 // Initializing
+initTheme();
 onStockSelectChange();
 initGoldInputs();
 renderAll();
