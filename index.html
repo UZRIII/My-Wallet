@@ -396,11 +396,10 @@ const STOCK_TICKERS = {
   "EIFH - إيبيكو للأدوية": "PHAR.CA"
 };
 
-// ---------- Dynamic EGX Price Auto Fetcher ----------
+// ---------- Dynamic EGX Price Auto Fetcher (With Fallback Proxies) ----------
 async function fetchStockPrice(ticker) {
     const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
     
-    // قائمة بروكسيات معالجة لـ CORS لضمان العمل دائماً
     const proxies = [
         url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
         url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
@@ -419,7 +418,6 @@ async function fetchStockPrice(ticker) {
                 return meta.regularMarketPrice || meta.chartPreviousClose;
             }
         } catch (error) {
-            // تجربة البروكسي التالي عند حدوث خطأ
             continue;
         }
     }
@@ -618,7 +616,7 @@ function renderChart(stocksVal, goldVal, fixedVal){
   }
 }
 
-// ---------- Stocks ----------
+// ---------- Stocks Management ----------
 function addStock(){
   const name = document.getElementById('s_name').value;
   const qty = parseFloat(document.getElementById('s_qty').value);
@@ -629,10 +627,16 @@ function addStock(){
   
   const existingStockIndex = stocks.findIndex(s => s.name === name);
   if(existingStockIndex >= 0) {
-      stocks[existingStockIndex].qty += qty;
-      stocks[existingStockIndex].avg = avg;
+      // احتساب متوسط الشراء الموزون أوتوماتيكياً عند إضافة أسهُم جديدة بنفس الاسم
+      const oldQty = stocks[existingStockIndex].qty;
+      const oldAvg = stocks[existingStockIndex].avg;
+      const totalQty = oldQty + qty;
+      const weightedAvg = ((oldQty * oldAvg) + (qty * avg)) / totalQty;
+
+      stocks[existingStockIndex].qty = totalQty;
+      stocks[existingStockIndex].avg = weightedAvg;
       stocks[existingStockIndex].cur = cur;
-      stocks[existingStockIndex].target = target;
+      if(target) stocks[existingStockIndex].target = target;
   } else {
       stocks.push({id:Date.now(), name, qty, avg, cur, target});
   }
@@ -676,7 +680,7 @@ function futureValue(principal, rate, years){
   return principal * Math.pow(1 + rate/100, years);
 }
 
-// ---------- Gold Section Management ----------
+// ---------- Gold Section Management (With Resilient Fallbacks) ----------
 function initGoldInputs(){
   document.getElementById('g24_qty').value = goldData.g24_qty || '';
   document.getElementById('g24_price').value = goldData.g24_price || '';
@@ -703,50 +707,50 @@ async function updateGoldPrices(){
   statusEl.textContent = 'جاري جلب أسعار الذهب وصرف الجنيه... ⏳';
   statusEl.className = 'status-line';
 
+  const proxies = [
+      url => url, // محاولة جلب مباشرة أولاً
+      url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+  ];
+
   try {
     let xauUsdPerOunce = null;
 
-    try {
-      const res = await fetch('https://api.gold-api.com/price/XAU');
-      if(res.ok) {
-        const data = await res.json();
-        if(data && data.price) xauUsdPerOunce = data.price;
-      }
-    } catch(e){}
-
-    if(!xauUsdPerOunce) {
-      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
-      const res = await fetch(proxyUrl);
-      if(res.ok) {
-        const data = await res.json();
-        if(data && data.items && data.items[0] && data.items[0].xauPrice) {
-          xauUsdPerOunce = data.items[0].xauPrice;
-        }
-      }
+    // جلب سعر أونصة الذهب عالمياً بالدولار
+    for (const getProxyUrl of proxies) {
+        try {
+            const res = await fetch(getProxyUrl('https://api.gold-api.com/price/XAU'));
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.price) {
+                    xauUsdPerOunce = data.price;
+                    break;
+                }
+            }
+        } catch(e) { continue; }
     }
 
-    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب');
+    if (!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب عالمياً');
 
+    // جلب سعر صرف الدولار مقابل الجنيه المصري
     let usdToEgp = null;
-    try {
-      const fxResp = await fetch('https://open.er-api.com/v6/latest/USD');
-      if(fxResp.ok) {
-        const fxJson = await fxResp.json();
-        if(fxJson && fxJson.rates && fxJson.rates.EGP) usdToEgp = fxJson.rates.EGP;
-      }
-    } catch(e){}
-
-    if(!usdToEgp) {
-      const fxProxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.exchangerate-api.com/v4/latest/USD');
-      const fxResp = await fetch(fxProxy);
-      if(fxResp.ok) {
-        const fxJson = await fxResp.json();
-        if(fxJson && fxJson.rates && fxJson.rates.EGP) usdToEgp = fxJson.rates.EGP;
-      }
+    for (const getProxyUrl of proxies) {
+        try {
+            const fxResp = await fetch(getProxyUrl('https://open.er-api.com/v6/latest/USD'));
+            if (fxResp.ok) {
+                const fxJson = await fxResp.json();
+                if (fxJson && fxJson.rates && fxJson.rates.EGP) {
+                    usdToEgp = fxJson.rates.EGP;
+                    break;
+                }
+            }
+        } catch(e) { continue; }
     }
 
-    if(!usdToEgp) throw new Error('تعذر جلب سعر الجنيه');
+    if (!usdToEgp) throw new Error('تعذر جلب سعر صرف الجنيه المصري');
 
+    // الحسابات المباشرة لعيار 24 وعيار 21
     const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
     const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
 
@@ -786,7 +790,7 @@ function renderAll(){
     tr.innerHTML = `
       <td class="name-cell">${s.name}</td>
       <td><input type="number" value="${s.qty}" onchange="updateStockField(${s.id},'qty',this.value)"></td>
-      <td><input type="number" step="0.01" value="${s.avg}" onchange="updateStockField(${s.id},'avg',this.value)"></td>
+      <td><input type="number" step="0.01" value="${s.avg.toFixed(2)}" onchange="updateStockField(${s.id},'avg',this.value)"></td>
       <td><strong style="color:var(--gold-soft);">${s.cur.toFixed(2)}</strong></td>
       <td><input type="number" step="0.01" value="${s.target}" onchange="updateStockField(${s.id},'target',this.value)"></td>
       <td>${fmt(value)}</td>
