@@ -74,7 +74,7 @@
   th,td{padding:10px 8px; text-align:center; border-bottom:1px solid var(--line);}
   th{color:var(--ink-dim); font-weight:600; font-size:.8rem;}
   td input{
-    width:90px; background:transparent; border:1px solid var(--line); border-radius:6px;
+    width:85px; background:transparent; border:1px solid var(--line); border-radius:6px;
     color:var(--ink); padding:6px; text-align:center; font-family:inherit; font-size:.9rem;
   }
   td input:focus{outline:1px solid var(--gold); border-color:var(--gold);}
@@ -92,6 +92,7 @@
     color:var(--ink); padding:8px 10px; font-family:inherit; min-width:110px;
   }
   .field input:focus, .field select:focus{outline:1px solid var(--gold); border-color:var(--gold);}
+  .field input[readonly]{background:rgba(255,255,255,0.05); color:var(--gold-soft); cursor:not-allowed;}
   
   button{
     font-family:inherit; cursor:pointer; border:none; border-radius:8px;
@@ -145,7 +146,7 @@
   <!-- STOCKS -->
   <section>
     <h2>📈 محفظة الأسهم</h2>
-    <div class="section-sub">اختر السهم وأدخل بيانات الكمية والأسعار لحسابه وإضافته للثروة.</div>
+    <div class="section-sub">اختر السهم ليتحدد السعر تلقائياً، وأدخل الكمية ومتوسط الشراء لحسابه وإضافته للثروة.</div>
     <div class="table-scroll">
     <table id="stocksTable">
       <thead>
@@ -161,7 +162,7 @@
     <div class="add-row">
       <div class="field">
         <label>اختر السهم</label>
-        <select id="s_name">
+        <select id="s_name" onchange="onStockSelectChange()">
           <option value="ORAS - أوراسكوم كونستراكشون">ORAS - أوراسكوم كونستراكشون</option>
           <option value="ETEL - المصرية للاتصالات">ETEL - المصرية للاتصالات</option>
           <option value="EGAL - مصر للألومنيوم">EGAL - مصر للألومنيوم</option>
@@ -171,7 +172,7 @@
       </div>
       <div class="field"><label>الكمية</label><input id="s_qty" type="number" placeholder="0"></div>
       <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" step="0.01" placeholder="0.00"></div>
-      <div class="field"><label>السعر الحالي</label><input id="s_cur" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>السعر الحالي (تلقائي)</label><input id="s_cur" type="number" step="0.01" readonly placeholder="0.00"></div>
       <div class="field"><label>السعر المستهدف</label><input id="s_target" type="number" step="0.01" placeholder="0.00"></div>
       <button class="btn-primary" onclick="addStock()">إضافة سهم</button>
     </div>
@@ -253,6 +254,21 @@
 </div>
 
 <script>
+// ---------- Stock Live/Static Prices Dictionary ----------
+const STOCK_PRICES = {
+  "ORAS - أوراسكوم كونستراكشون": 285.00,
+  "ETEL - المصرية للاتصالات": 38.50,
+  "EGAL - مصر للألومنيوم": 74.00,
+  "ADIB - مصرف أبوظبي الإسلامي": 41.50,
+  "EIFH - إيبيكو للأدوية": 46.00
+};
+
+function onStockSelectChange(){
+  const selectedStock = document.getElementById('s_name').value;
+  const price = STOCK_PRICES[selectedStock] || 0;
+  document.getElementById('s_cur').value = price.toFixed(2);
+}
+
 // ---------- Storage ----------
 const load = (k, def) => JSON.parse(localStorage.getItem(k) || JSON.stringify(def));
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
@@ -267,14 +283,15 @@ function addStock(){
   const name = document.getElementById('s_name').value;
   const qty = parseFloat(document.getElementById('s_qty').value);
   const avg = parseFloat(document.getElementById('s_avg').value);
-  const cur = parseFloat(document.getElementById('s_cur').value) || avg;
+  const cur = parseFloat(document.getElementById('s_cur').value) || 0;
   const target = parseFloat(document.getElementById('s_target').value) || 0;
   if(!qty || !avg){ alert('من فضلك أدخل الكمية ومتوسط الشراء'); return; }
   stocks.push({id:Date.now(), name, qty, avg, cur, target});
   save('pf_stocks', stocks);
-  ['s_qty','s_avg','s_cur','s_target'].forEach(id=>document.getElementById(id).value='');
+  ['s_qty','s_avg','s_target'].forEach(id=>document.getElementById(id).value='');
   renderAll();
 }
+
 function updateStockField(id, field, value){
   const s = stocks.find(x=>x.id===id);
   if(!s) return;
@@ -282,6 +299,7 @@ function updateStockField(id, field, value){
   save('pf_stocks', stocks);
   renderAll();
 }
+
 function deleteStock(id){
   stocks = stocks.filter(x=>x.id!==id);
   save('pf_stocks', stocks);
@@ -308,7 +326,7 @@ function futureValue(principal, rate, years){
   return principal * Math.pow(1 + rate/100, years);
 }
 
-// ---------- Gold Calculator (Completely Separate & Non-Persistent) ----------
+// ---------- Gold Calculator ----------
 function calcGold(){
   const g24_qty = parseFloat(document.getElementById('g24_qty').value) || 0;
   const g24_price = parseFloat(document.getElementById('g24_price').value) || 0;
@@ -397,19 +415,26 @@ function renderAll(){
   body.innerHTML = '';
   document.getElementById('stocksEmpty').style.display = stocks.length ? 'none':'block';
   let stocksValue = 0, stocksInvested = 0;
+
   stocks.forEach(s=>{
+    // Always sync stock current price with the dictionary
+    const currentStockPrice = STOCK_PRICES[s.name] || s.cur || 0;
+    s.cur = currentStockPrice;
+
     const value = s.qty * s.cur;
     const cost = s.qty * s.avg;
-    stocksValue += value; stocksInvested += cost;
+    stocksValue += value; 
+    stocksInvested += cost;
     const gain = value - cost;
     const gainPct = cost ? (gain/cost*100) : 0;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="name-cell">${s.name}</td>
-      <td>${s.qty}</td>
-      <td>${s.avg.toFixed(2)}</td>
-      <td><input type="number" value="${s.cur}" onchange="updateStockField(${s.id},'cur',this.value)"></td>
-      <td><input type="number" value="${s.target}" onchange="updateStockField(${s.id},'target',this.value)"></td>
+      <td><input type="number" value="${s.qty}" onchange="updateStockField(${s.id},'qty',this.value)"></td>
+      <td><input type="number" step="0.01" value="${s.avg}" onchange="updateStockField(${s.id},'avg',this.value)"></td>
+      <td><strong style="color:var(--gold-soft);">${s.cur.toFixed(2)}</strong></td>
+      <td><input type="number" step="0.01" value="${s.target}" onchange="updateStockField(${s.id},'target',this.value)"></td>
       <td>${fmt(value)}</td>
       <td class="${gain>=0?'gain':'loss'}">${gain>=0?'+':''}${fmt(gain)} (${gainPct.toFixed(1)}%)</td>
       <td><button class="btn-del" onclick="deleteStock(${s.id})">حذف</button></td>
@@ -452,6 +477,8 @@ function renderAll(){
   pill.className = 'growth-pill ' + (totalGrowth>=0?'up':'down');
 }
 
+// Initial Call
+onStockSelectChange();
 renderAll();
 </script>
 </body>
