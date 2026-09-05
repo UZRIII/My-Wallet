@@ -91,6 +91,8 @@
     background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
     color:var(--ink); padding:8px 10px; font-family:inherit; width:130px;
   }
+  .field input:focus{outline:1px solid var(--gold); border-color:var(--gold);}
+  
   button{
     font-family:inherit; cursor:pointer; border:none; border-radius:8px;
     padding:9px 16px; font-weight:700; font-size:.88rem;
@@ -107,7 +109,7 @@
   .gold-card h3{color:var(--gold); font-size:1rem; margin-bottom:10px;}
   .gold-fields{display:flex; gap:10px; flex-wrap:wrap;}
 
-  .status-line{font-size:.78rem; color:var(--ink-dim); margin-top:10px;}
+  .status-line{font-size:.82rem; color:var(--ink-dim); margin-top:10px;}
   .status-line.err{color:var(--red);}
   .status-line.ok{color:var(--green);}
 
@@ -121,6 +123,7 @@
 <body>
 <div class="wrap">
 
+  <!-- SUMMARY -->
   <div class="summary">
     <div class="summary-top">
       <h1>إجمالي الثروة</h1>
@@ -138,7 +141,7 @@
   <!-- STOCKS -->
   <section>
     <h2>📈 محفظة الأسهم</h2>
-    <div class="section-sub">سجّل أسهمك وحدّث السعر الحالي يدويًا يوميًا (لا يوجد API مجاني موثوق للبورصة المصرية يعمل من المتصفح مباشرة — التفاصيل أسفل الجدول).</div>
+    <div class="section-sub">سجّل أسهمك وحدّث السعر الحالي يدويًا.</div>
     <div class="table-scroll">
     <table id="stocksTable">
       <thead>
@@ -161,109 +164,53 @@
     </div>
   </section>
 
-  <!-- GOLD -->
+  <!-- GOLD SECTION -->
   <section>
-    <h2>🪙 الذهب</h2>
+    <h2>🪙 الذهب (عيار 21 وعيار 24)</h2>
+    <div class="section-sub">يمكنك تحديث سعر الذهب تلقائيًا حسب السعر العالمي وسعر الصرف، أو إدخال الأسعار والكميات يدويًا.</div>
     
-    <label>اختر العيار</label>
-    <select id="caratSelect">
-      <option value="21">عيار 21</option>
-      <option value="24" selected>عيار 24</option>
-    </select>
-    
-    <label>الكمية (جرام)</label>
-    <input id="qty" type="number" min="0" step="0.01" value="0" />
-    
-    <label>سعر الجرام (ج.م) — من المصدر</label>
-    <input id="pricePerGram" type="number" min="0" step="0.01" value="0" disabled />
-    
-    <label>إجمالي القيمة (ج.م)</label>
-    <input id="totalValue" type="number" min="0" step="0.01" value="0" disabled />
-    
-    <button id="btnUpdate">🔄 تحديث سعر الذهب من البورصة المصرية</button>
-    <p id="status"></p>
-    
-    <script>
-      const el = {
-        caratSelect: document.getElementById('caratSelect'),
-        qty: document.getElementById('qty'),
-        pricePerGram: document.getElementById('pricePerGram'),
-        totalValue: document.getElementById('totalValue'),
-        btnUpdate: document.getElementById('btnUpdate'),
-        status: document.getElementById('status')
-      };
+    <div style="margin-bottom: 16px;">
+      <button class="btn-primary" onclick="updateGoldPrices()">🔄 تحديث أسعار الذهب تلقائيًا من النت</button>
+      <div id="goldStatus" class="status-line"></div>
+    </div>
 
-      // سنخزن أسعار 21 و24 بالجنيه
-      let price21Egp = null;
-      let price24Egp = null;
+    <div class="gold-grid">
+      <!-- عيار 24 -->
+      <div class="gold-card">
+        <h3>🥇 ذهب عيار 24</h3>
+        <div class="gold-fields">
+          <div class="field">
+            <label>الكمية (جرام)</label>
+            <input id="g24_qty" type="number" step="0.01" placeholder="0" oninput="renderAll()">
+          </div>
+          <div class="field">
+            <label>سعر الجرام (ج.م)</label>
+            <input id="g24_price" type="number" step="0.01" placeholder="0.00" oninput="renderAll()">
+          </div>
+        </div>
+      </div>
 
-      function compute() {
-        const qty = Number(el.qty.value || 0);
-        const carat = Number(el.caratSelect.value);
-
-        const price = (carat === 21) ? price21Egp : price24Egp;
-
-        if (!price || price <= 0) {
-          el.pricePerGram.value = (0).toFixed(2);
-          el.totalValue.value = (0).toFixed(2);
-          el.status.textContent = "لا يوجد سعر محدث بعد — اضغط تحديث ✅";
-          return;
-        }
-
-        el.pricePerGram.value = price.toFixed(2);
-        el.totalValue.value = (price * qty).toFixed(2);
-        el.status.textContent = "تم الحساب ✅ (السعر من المصدر)";
-      }
-
-      el.caratSelect.addEventListener('change', compute);
-      el.qty.addEventListener('input', compute);
-
-      async function fetchGoldPricesFromEgyptSource() {
-        /**
-         * ✅ هنا لازم نستخدم رابط “البورصة المصرية”/صفحة الأسعار التي تحتوي 21 و24 بالجنيه.
-         * 
-         * مثال:
-         * - إن كان المصدر JSON فيه price21 و price24:
-         *     return { price21: ..., price24: ... }
-         * - إن كان مجرد HTML:
-         *     نحتاج منك رابط الصفحة بالضبط لأكتب parsing مناسب.
-         */
-
-        const url = "PUT_YOUR_EGYPT_GOLD_21_24_SOURCE_URL_HERE";
-
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("فشل جلب سعر الذهب من المصدر");
-
-        const data = await res.json(); // لو المصدر JSON
-        // عدّل هذه السطور حسب شكل JSON الفعلي:
-        return {
-          price21: Number(data.price21),
-          price24: Number(data.price24),
-        };
-      }
-
-      el.btnUpdate.addEventListener('click', async () => {
-        el.status.textContent = "جارٍ التحديث... ⏳";
-        try {
-          const r = await fetchGoldPricesFromEgyptSource();
-          price21Egp = r.price21;
-          price24Egp = r.price24;
-          el.status.textContent = "تم تحديث أسعار 21 و24 ✅";
-          compute();
-        } catch (e) {
-          console.error(e);
-          el.status.textContent = "تعذر التحديث. أرسل رابط المصدر/الصفحة لتعديل جلب البيانات.";
-        }
-      });
-
-      compute();
-    </script>
+      <!-- عيار 21 -->
+      <div class="gold-card">
+        <h3>🥈 ذهب عيار 21</h3>
+        <div class="gold-fields">
+          <div class="field">
+            <label>الكمية (جرام)</label>
+            <input id="g21_qty" type="number" step="0.01" placeholder="0" oninput="renderAll()">
+          </div>
+          <div class="field">
+            <label>سعر الجرام (ج.م)</label>
+            <input id="g21_price" type="number" step="0.01" placeholder="0.00" oninput="renderAll()">
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- FIXED INCOME -->
   <section>
     <h2>🏦 الدخل الثابت (صكوك / شهادات بنكية)</h2>
-    <div class="section-sub">أدخل رأس المال ونسبة العائد السنوي، وسيحسب التطبيق القيمة المتوقعة بعد سنة وسنتين وثلاث سنوات (عائد مركب).</div>
+    <div class="section-sub">أدخل رأس المال ونسبة العائد السنوي للحساب المتوقع.</div>
     <div class="table-scroll">
     <table id="fixedTable">
       <thead>
@@ -295,6 +242,7 @@ let stocks = load('pf_stocks', []);
 let fixedIncome = load('pf_fixed', []);
 let goldData = load('pf_gold', {g21_qty:0, g21_price:0, g24_qty:0, g24_price:0});
 
+// Load Gold Inputs
 document.getElementById('g21_qty').value = goldData.g21_qty || '';
 document.getElementById('g21_price').value = goldData.g21_price || '';
 document.getElementById('g24_qty').value = goldData.g24_qty || '';
@@ -348,41 +296,45 @@ function futureValue(principal, rate, years){
   return principal * Math.pow(1 + rate/100, years);
 }
 
-// ---------- Gold auto update (best-effort) ----------
+// ---------- Gold Auto Update ----------
 async function updateGoldPrices(){
   const statusEl = document.getElementById('goldStatus');
-  statusEl.textContent = 'جاري المحاولة...';
+  statusEl.textContent = 'جاري جلب أسعار الذهب وصرف الجنيه... ⏳';
   statusEl.className = 'status-line';
   try{
+    // 1. Fetch Global Gold Price (XAU in USD per Troy Ounce)
     const goldResp = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
-    if(!goldResp.ok) throw new Error('gold fetch failed');
+    if(!goldResp.ok) throw new Error('فشل جلب سعر الذهب العالمي');
     const goldJson = await goldResp.json();
     const xauUsdPerOunce = goldJson.items[0].xauPrice;
 
-    const fxResp = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-    if(!fxResp.ok) throw new Error('fx fetch failed');
+    // 2. Fetch USD to EGP Exchange Rate
+    const fxResp = await fetch('https://open.er-api.com/v6/latest/USD');
+    if(!fxResp.ok) throw new Error('فشل جلب سعر الصرف');
     const fxJson = await fxResp.json();
     const usdToEgp = fxJson.rates.EGP;
-    if(!usdToEgp) throw new Error('no EGP rate');
+    if(!usdToEgp) throw new Error('تعذر العثور على سعر صرف الجنيه المصري');
 
-    const pricePerGram24Usd = xauUsdPerOunce / 31.1035;
-    const pricePerGram24Egp = pricePerGram24Usd * usdToEgp;
-    const pricePerGram21Egp = pricePerGram24Egp * (21/24);
+    // 3. Calculate Gold Price per Gram in EGP (1 Troy Ounce = 31.1034768 grams)
+    const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
+    const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
 
     document.getElementById('g24_price').value = pricePerGram24Egp.toFixed(2);
     document.getElementById('g21_price').value = pricePerGram21Egp.toFixed(2);
+    
     renderAll();
-    statusEl.textContent = 'تم التحديث بناءً على سعر الذهب العالمي وسعر صرف الدولار (سعر تقريبي، قد يختلف قليلاً عن سعر الصاغة المحلي بسبب المصنعية).';
+    statusEl.textContent = 'تم التحديث بنجاح بناءً على سعر الذهب العالمي وسعر الصرف! ✅ (ملاحظة: قد تختلف أسعار الصاغة المحلية قليلاً عن السعر العالمي التلقائي).';
     statusEl.className = 'status-line ok';
-  }catch(err){
-    statusEl.textContent = 'تعذّر التحديث التلقائي من المتصفح (غالبًا بسبب قيود CORS على المواقع). من فضلك أدخل السعر يدويًا حسب سعر البورصة المصرية اليوم.';
+  } catch(err){
+    console.error(err);
+    statusEl.textContent = 'تعذّر التحديث التلقائي. يمكنك كتابة سعر الجرام يدويًا في الخانات المخصصة.';
     statusEl.className = 'status-line err';
   }
 }
 
-// ---------- Render ----------
+// ---------- Render All ----------
 function renderAll(){
-  // save gold manual fields
+  // Save Gold inputs
   goldData = {
     g21_qty: parseFloat(document.getElementById('g21_qty').value) || 0,
     g21_price: parseFloat(document.getElementById('g21_price').value) || 0,
@@ -391,7 +343,7 @@ function renderAll(){
   };
   save('pf_gold', goldData);
 
-  // Stocks table
+  // Stocks Table
   const body = document.getElementById('stocksBody');
   body.innerHTML = '';
   document.getElementById('stocksEmpty').style.display = stocks.length ? 'none':'block';
@@ -416,7 +368,7 @@ function renderAll(){
     body.appendChild(tr);
   });
 
-  // Fixed income table
+  // Fixed Income Table
   const fbody = document.getElementById('fixedBody');
   fbody.innerHTML = '';
   document.getElementById('fixedEmpty').style.display = fixedIncome.length ? 'none':'block';
@@ -436,12 +388,12 @@ function renderAll(){
     fbody.appendChild(tr);
   });
 
-  // Gold value
-  const goldValue = (goldData.g21_qty*goldData.g21_price) + (goldData.g24_qty*goldData.g24_price);
+  // Calculate Gold Value
+  const goldValue = (goldData.g21_qty * goldData.g21_price) + (goldData.g24_qty * goldData.g24_price);
 
   // Totals
   const totalValue = stocksValue + goldValue + fixedTotal;
-  const totalInvested = stocksInvested + goldValue + fixedTotal; // gold & fixed have no separate cost basis tracked
+  const totalInvested = stocksInvested + goldValue + fixedTotal;
   const growth = stocksInvested ? ((stocksValue - stocksInvested)/stocksInvested*100) : 0;
 
   document.getElementById('totalValue').textContent = fmt(totalValue);
