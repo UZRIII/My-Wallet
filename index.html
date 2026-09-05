@@ -1,149 +1,764 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>محفظة الأسهم</title>
-    <style>
-        body { font-family: system-ui, sans-serif; background-color: #0b1d19; color: #fff; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; background: #0f2b26; padding: 20px; border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: center; }
-        th, td { padding: 12px; border: 1px solid #1a423b; }
-        th { background-color: #143831; color: #a5d6a7; }
-        input, select, button { padding: 8px; margin: 5px; border-radius: 5px; border: 1px solid #1a423b; background: #183e36; color: #fff; }
-        button { background: #e0a96d; color: #000; font-weight: bold; cursor: pointer; border: none; }
-        .profit { color: #4caf50; font-weight: bold; }
-        .loss { color: #ff5252; font-weight: bold; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>محفظتي الاستثمارية</title>
+<!-- Favicon Icon -->
+<link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/5167/5167008.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root{
+    --bg:#0E1F1C;
+    --panel:#123832;
+    --panel-2:#0E2B26;
+    --line:#1F4A42;
+    --ink:#EAF3F0;
+    --ink-dim:#9FC2BA;
+    --gold:#D4AF37;
+    --gold-soft:#F0DFA0;
+    --green:#4ADE80;
+    --blue:#38BDF8;
+    --red:#F87171;
+    --radius:14px;
+    --gradient-start:#163f38;
+  }
+
+  /* Theme: Beige */
+  body.theme-beige {
+    --bg:#F5EBE0;
+    --panel:#E6D5C3;
+    --panel-2:#D8C3B0;
+    --line:#C2A993;
+    --ink:#2D2319;
+    --ink-dim:#685646;
+    --gradient-start:#FAF3ED;
+    --gold:#B8860B;
+    --gold-soft:#8B6508;
+  }
+
+  /* Theme: Blue */
+  body.theme-blue {
+    --bg:#0B132B;
+    --panel:#1C2541;
+    --panel-2:#151B33;
+    --line:#2A3A5C;
+    --ink:#EDF2F7;
+    --ink-dim:#8D99AE;
+    --gradient-start:#122240;
+    --gold:#D4AF37;
+    --gold-soft:#F0DFA0;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 80% -10%, var(--gradient-start) 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:'Cairo', sans-serif;
+    padding:24px 16px 60px;
+    line-height:1.6;
+    transition: background 0.3s, color 0.3s;
+  }
+  h1,h2,h3{font-weight:800; margin:0;}
+  .wrap{max-width:1000px; margin:0 auto;}
+
+  /* Fixed Theme Switcher */
+  .theme-switcher {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 6px 10px;
+    border-radius: 10px;
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .theme-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .theme-btn:hover { transform: scale(1.15); }
+  .theme-btn.active { border-color: var(--ink); transform: scale(1.1); }
+  .theme-btn.btn-green { background: #123832; }
+  .theme-btn.btn-beige { background: #D8C3B0; }
+  .theme-btn.btn-blue { background: #1C2541; }
+
+  /* Header / summary */
+  .summary{
+    background:linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:24px;
+    margin-bottom:28px;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  .summary-top{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;}
+  .summary-top h1{font-size:1.15rem; color:var(--ink-dim); font-weight:600;}
+  .total-value{font-size:2.4rem; font-weight:800; letter-spacing:.5px;}
+  .growth-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 14px; border-radius:999px; font-weight:700; font-size:.95rem;
+  }
+  .growth-pill.up{background:rgba(74,222,128,.15); color:var(--green);}
+  .growth-pill.down{background:rgba(248,113,113,.15); color:var(--red);}
+  .breakdown{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+    gap:14px; margin-top:20px;
+  }
+  .b-item{background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  .b-item .label{color:var(--ink-dim); font-size:.8rem;}
+  .b-item .val{font-size:1.15rem; font-weight:700; margin-top:4px;}
+
+  /* Sections */
+  section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:24px;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  section > h2{
+    font-size:1.15rem; margin-bottom:4px; display:flex; align-items:center; gap:8px;
+  }
+  .section-sub{color:var(--ink-dim); font-size:.85rem; margin-bottom:16px;}
+
+  /* Chart Layout */
+  .chart-container {
+    position: relative;
+    width: 100%;
+    max-width: 850px;
+    height: 380px;
+    margin: 10px auto;
+  }
+
+  table{width:100%; border-collapse:collapse; font-size:.92rem;}
+  th,td{padding:10px 8px; text-align:center; border-bottom:1px solid var(--line);}
+  th{color:var(--ink-dim); font-weight:600; font-size:.8rem;}
+  td input{
+    width:85px; background:transparent; border:1px solid var(--line); border-radius:6px;
+    color:var(--ink); padding:6px; text-align:center; font-family:inherit; font-size:.9rem;
+  }
+  td input:focus{outline:1px solid var(--gold); border-color:var(--gold);}
+  .name-cell{text-align:right; font-weight:700;}
+  .gain{color:var(--green); font-weight:700;}
+  .loss{color:var(--red); font-weight:700;}
+
+  .add-row{
+    display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; align-items:flex-end;
+  }
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:.78rem; color:var(--ink-dim);}
+  .field input, .field select{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    color:var(--ink); padding:8px 10px; font-family:inherit; min-width:110px;
+  }
+  .field input:focus, .field select:focus{outline:1px solid var(--gold); border-color:var(--gold);}
+  
+  button{
+    font-family:inherit; cursor:pointer; border:none; border-radius:8px;
+    padding:9px 16px; font-weight:700; font-size:.88rem;
+  }
+  .btn-primary{background:var(--gold); color:#1a1400;}
+  .btn-primary:hover{background:var(--gold-soft);}
+  .btn-del{background:transparent; color:var(--red); border:1px solid rgba(248,113,113,.3); padding:5px 10px; font-size:.8rem;}
+
+  /* Gold Section */
+  .gold-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media(max-width:700px){.gold-grid{grid-template-columns:1fr;}}
+  .gold-card{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
+  .gold-card h3{color:var(--gold); font-size:1rem; margin-bottom:10px;}
+  .gold-fields{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .calc-res{margin-top:12px; font-size:.9rem; color:var(--gold-soft); font-weight:700;}
+
+  .gold-actions{
+    margin-top:16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:12px;
+    padding:12px;
+    background:rgba(212,175,55,.08);
+    border:1px solid var(--gold);
+    border-radius:8px;
+  }
+
+  .status-line{font-size:.82rem; color:var(--ink-dim); margin-top:10px;}
+  .status-line.err{color:var(--red);}
+  .status-line.ok{color:var(--green);}
+
+  .empty{color:var(--ink-dim); font-size:.85rem; padding:12px 0; text-align:center;}
+
+  ::-webkit-scrollbar{height:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+  .table-scroll{overflow-x:auto;}
+</style>
 </head>
 <body>
 
-<div class="container">
-    <h2>محفظة الأسهم</h2>
-    
-    <!-- نموذج إضافة سهم -->
-    <div>
-        <select id="stockSelect" onchange="onStockChange()">
-            <option value="">اختر السهم</option>
-            <option value="ORAS">ORAS - أوراسكوم كونستراكشون</option>
-            <option value="ETEL">ETEL - المصرية للاتصالات</option>
+<!-- Fixed Theme Switcher Buttons -->
+<div class="theme-switcher">
+  <div class="theme-btn btn-green active" onclick="setTheme('green')" title="الثيم الأخضر الأساسي"></div>
+  <div class="theme-btn btn-beige" onclick="setTheme('beige')" title="الثيم البيج"></div>
+  <div class="theme-btn btn-blue" onclick="setTheme('blue')" title="الثيم الأزرق"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- SUMMARY -->
+  <div class="summary">
+    <div class="summary-top">
+      <h1>إجمالي الثروة</h1>
+      <span id="growthPill" class="growth-pill up">+0.00%</span>
+    </div>
+    <div class="total-value" id="totalValue">0 ج.م</div>
+    <div class="breakdown">
+      <div class="b-item"><div class="label">قيمة الأسهم</div><div class="val" id="sumStocks">0</div></div>
+      <div class="b-item"><div class="label">قيمة الذهب</div><div class="val" id="sumGold">0</div></div>
+      <div class="b-item"><div class="label">الدخل الثابت</div><div class="val" id="sumFixed">0</div></div>
+      <div class="b-item"><div class="label">رأس المال المستثمر (أسهم + دخل ثابت)</div><div class="val" id="sumInvested">0</div></div>
+    </div>
+  </div>
+
+  <!-- STOCKS -->
+  <section>
+    <h2>📈 محفظة الأسهم</h2>
+    <div class="section-sub">اختر السهم ليتحدد السعر تلقائياً، وأدخل الكمية ومتوسط الشراء لحسابه وإضافته للثروة.</div>
+    <div class="table-scroll">
+    <table id="stocksTable">
+      <thead>
+        <tr>
+          <th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالي</th>
+          <th>السعر المستهدف</th><th>القيمة الحالية</th><th>الربح/الخسارة</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="stocksBody"></tbody>
+    </table>
+    </div>
+    <div id="stocksEmpty" class="empty" style="display:none;">لا توجد أسهم مضافة بعد.</div>
+    <div class="add-row">
+      <div class="field">
+        <label>اختر السهم</label>
+        <select id="s_name" onchange="onStockSelectChange()">
+          <option value="ORAS - أوراسكوم كونستراكشون">ORAS - أوراسكوم كونستراكشون</option>
+          <option value="ETEL - المصرية للاتصالات">ETEL - المصرية للاتصالات</option>
+          <option value="EGAL - مصر للألومنيوم">EGAL - مصر للألومنيوم</option>
+          <option value="ADIB - مصرف أبوظبي الإسلامي">ADIB - مصرف أبوظبي الإسلامي</option>
+          <option value="EIFH - إيبيكو للأدوية">EIFH - إيبيكو للأدوية</option>
         </select>
-        <input type="number" id="quantity" placeholder="الكمية" value="1">
-        <input type="number" id="buyPrice" placeholder="متوسط سعر الشراء">
-        <input type="number" id="currentPrice" placeholder="السعر الحالي (تلقائي)" readonly>
-        <input type="number" id="targetPrice" placeholder="السعر المستهدف">
-        <button onclick="addStock()">إضافة سهم</button>
+      </div>
+      <div class="field"><label>الكمية</label><input id="s_qty" type="number" placeholder="0"></div>
+      <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>السعر الحالي (تلقائي)</label><input id="s_cur" type="number" step="0.01" readonly placeholder="0.00"></div>
+      <div class="field"><label>السعر المستهدف</label><input id="s_target" type="number" step="0.01" placeholder="0.00"></div>
+      <button class="btn-primary" onclick="addStock()">إضافة سهم</button>
+    </div>
+  </section>
+
+  <!-- GOLD SECTION -->
+  <section>
+    <h2>🪙 محفظة الذهب</h2>
+    <div class="section-sub">أدخل حيازتك من الذهب ليتم احتساب قيمتها وإضافتها مباشرة إلى إجمالي الثروة.</div>
+    
+    <div style="margin-bottom: 16px;">
+      <button class="btn-primary" onclick="updateGoldPrices()">🔄 جلب أسعار الذهب الحالية من النت</button>
+      <div id="goldStatus" class="status-line"></div>
     </div>
 
-    <!-- جدول المحفظة -->
-    <table>
-        <thead>
-            <tr>
-                <th>السهم</th>
-                <th>الكمية</th>
-                <th>متوسط الشراء</th>
-                <th>السعر الحالي (الإغلاق)</th>
-                <th>السعر المستهدف</th>
-                <th>القيمة الحالية</th>
-                <th>الربح / الخسارة</th>
-                <th>إجراء</th>
-            </tr>
-        </thead>
-        <tbody id="portfolioTable">
-            <!-- يتم إضافة البيانات تلقائياً -->
-        </tbody>
+    <div class="gold-grid">
+      <!-- عيار 24 -->
+      <div class="gold-card">
+        <h3>🥇 ذهب عيار 24</h3>
+        <div class="gold-fields">
+          <div class="field">
+            <label>الكمية (جرام)</label>
+            <input id="g24_qty" type="number" step="0.01" placeholder="0">
+          </div>
+          <div class="field">
+            <label>سعر الجرام (ج.م)</label>
+            <input id="g24_price" type="number" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+        <div class="calc-res">القيمة: <span id="g24_total">0 ج.م</span></div>
+      </div>
+
+      <!-- عيار 21 -->
+      <div class="gold-card">
+        <h3>🥈 ذهب عيار 21</h3>
+        <div class="gold-fields">
+          <div class="field">
+            <label>الكمية (جرام)</label>
+            <input id="g21_qty" type="number" step="0.01" placeholder="0">
+          </div>
+          <div class="field">
+            <label>سعر الجرام (ج.م)</label>
+            <input id="g21_price" type="number" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+        <div class="calc-res">القيمة: <span id="g21_total">0 ج.م</span></div>
+      </div>
+    </div>
+
+    <div class="gold-actions">
+      <div style="font-size:1.1rem; font-weight:800; color:var(--gold);">
+        إجمالي الذهب: <span id="goldCalcTotal">0 ج.م</span>
+      </div>
+      <button class="btn-primary" onclick="saveGoldToWealth()">➕ إضافة / تحديث الذهب بالثروة</button>
+    </div>
+  </section>
+
+  <!-- FIXED INCOME -->
+  <section>
+    <h2>🏦 الدخل الثابت (صكوك / شهادات بنكية)</h2>
+    <div class="section-sub">أدخل رأس المال ونسبة العائد السنوي للحساب المتوقع.</div>
+    <div class="table-scroll">
+    <table id="fixedTable">
+      <thead>
+        <tr>
+          <th>الاسم</th><th>رأس المال</th><th>العائد السنوي %</th>
+          <th>بعد سنة</th><th>بعد سنتين</th><th>بعد 3 سنوات</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="fixedBody"></tbody>
     </table>
+    </div>
+    <div id="fixedEmpty" class="empty" style="display:none;">لا توجد شهادات أو صكوك مضافة بعد.</div>
+    <div class="add-row">
+      <div class="field"><label>الاسم</label><input id="f_name" placeholder="مثال: شهادة بنك مصر"></div>
+      <div class="field"><label>رأس المال</label><input id="f_principal" type="number" placeholder="0.00"></div>
+      <div class="field"><label>العائد السنوي %</label><input id="f_rate" type="number" placeholder="0.00"></div>
+      <button class="btn-primary" onclick="addFixed()">إضافة</button>
+    </div>
+  </section>
+
+  <!-- CHART SECTION -->
+  <section>
+    <h2>📈 تطور الأصول عبر الأشهر</h2>
+    <div class="section-sub">مخطط بياني خطي يوضح مسار نمو الذهب والأسهم والدخل الثابت.</div>
+    <div class="chart-container">
+      <canvas id="wealthChart"></canvas>
+    </div>
+  </section>
+
 </div>
 
 <script>
-    // بيانات البورصة المجلوبة (يتم جلب سعر الإغلاق تلقائياً بدلاً من آخر سعر)
-    const egxMarketData = {
-        "ORAS": { name: "ORAS - أوراسكوم كونستراكشون", closingPrice: 850.020 },
-        "ETEL": { name: "ETEL - المصرية للاتصالات", closingPrice: 38.500 }
-    };
+// ---------- Theme Management ----------
+function setTheme(name){
+  document.body.classList.remove('theme-beige', 'theme-blue');
+  if(name !== 'green') document.body.classList.add('theme-' + name);
+  
+  document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.btn-' + name).classList.add('active');
+  
+  localStorage.setItem('pf_theme', name);
+  if(wealthChartInstance) updateChartThemeColors();
+}
 
-    // بيانات المحفظة الحالية
-    let portfolio = [
-        { id: 1, symbol: "ORAS", name: "ORAS - أوراسكوم كونستراكشون", quantity: 1, buyPrice: 500.00, targetPrice: 1000.00 }
-    ];
+function initTheme(){
+  const savedTheme = localStorage.getItem('pf_theme') || 'green';
+  setTheme(savedTheme);
+}
 
-    // عند اختيار سهم من القائمة يُجلب سعر الإغلاق فوراً الخانة
-    function onStockChange() {
-        const symbol = document.getElementById('stockSelect').value;
-        if (symbol && egxMarketData[symbol]) {
-            document.getElementById('currentPrice').value = egxMarketData[symbol].closingPrice;
-        } else {
-            document.getElementById('currentPrice').value = '';
+// ---------- Stock Prices Dictionary ----------
+const STOCK_PRICES = {
+  "ORAS - أوراسكوم كونستراكشون": 285.00,
+  "ETEL - المصرية للاتصالات": 38.50,
+  "EGAL - مصر للألومنيوم": 74.00,
+  "ADIB - مصرف أبوظبي الإسلامي": 41.50,
+  "EIFH - إيبيكو للأدوية": 46.00
+};
+
+function onStockSelectChange(){
+  const selectedStock = document.getElementById('s_name').value;
+  const price = STOCK_PRICES[selectedStock] || 0;
+  document.getElementById('s_cur').value = price.toFixed(2);
+}
+
+// ---------- Storage ----------
+const load = (k, def) => JSON.parse(localStorage.getItem(k) || JSON.stringify(def));
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+let stocks = load('pf_stocks', []);
+let fixedIncome = load('pf_fixed', []);
+let goldData = load('pf_gold', {g24_qty:0, g24_price:0, g21_qty:0, g21_price:0});
+
+const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2}) + ' ج.م';
+
+// ---------- Chart Handling (Line Chart) ----------
+let wealthChartInstance = null;
+
+function getChartColors(){
+  const isBeige = document.body.classList.contains('theme-beige');
+  return {
+    text: isBeige ? '#2D2319' : '#EAF3F0',
+    dim: isBeige ? '#685646' : '#9FC2BA',
+    grid: isBeige ? 'rgba(45, 35, 25, 0.12)' : 'rgba(255, 255, 255, 0.08)'
+  };
+}
+
+function updateChartThemeColors(){
+  const c = getChartColors();
+  wealthChartInstance.options.scales.x.ticks.color = c.dim;
+  wealthChartInstance.options.scales.x.grid.color = c.grid;
+  wealthChartInstance.options.scales.y.ticks.color = c.dim;
+  wealthChartInstance.options.scales.y.grid.color = c.grid;
+  wealthChartInstance.options.plugins.legend.labels.color = c.text;
+  wealthChartInstance.update();
+}
+
+function renderChart(stocksVal, goldVal, fixedVal){
+  const ctx = document.getElementById('wealthChart').getContext('2d');
+  const c = getChartColors();
+
+  const months = ['مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر'];
+
+  const goldHistory = [
+    Math.round(goldVal * 0.35),
+    Math.round(goldVal * 1.00),
+    Math.round(goldVal * 0.78),
+    Math.round(goldVal * 1.00),
+    Math.round(goldVal)
+  ];
+
+  const stocksHistory = [
+    Math.round(stocksVal * 0.33),
+    Math.round(stocksVal * 1.00),
+    Math.round(stocksVal * 0.75),
+    Math.round(stocksVal * 1.00),
+    Math.round(stocksVal)
+  ];
+
+  const fixedHistory = [
+    Math.round(fixedVal * 0.12),
+    Math.round(fixedVal * 0.50),
+    Math.round(fixedVal * 0.38),
+    Math.round(fixedVal * 1.00),
+    Math.round(fixedVal)
+  ];
+
+  const chartData = {
+    labels: months,
+    datasets: [
+      {
+        label: 'الذهب 🪙',
+        data: goldHistory,
+        borderColor: '#D4AF37',
+        backgroundColor: '#D4AF37',
+        pointStyle: 'circle',
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2,
+        tension: 0
+      },
+      {
+        label: 'الأسهم 📈',
+        data: stocksHistory,
+        borderColor: '#F87171',
+        backgroundColor: '#F87171',
+        pointStyle: 'rectRot',
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2,
+        tension: 0
+      },
+      {
+        label: 'الدخل الثابت 🏦',
+        data: fixedHistory,
+        borderColor: '#38BDF8',
+        backgroundColor: '#38BDF8',
+        pointStyle: 'rect',
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2,
+        tension: 0
+      }
+    ]
+  };
+
+  if(wealthChartInstance){
+    wealthChartInstance.data = chartData;
+    updateChartThemeColors();
+  } else {
+    wealthChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              color: c.text,
+              font: { family: 'Cairo', size: 13, weight: 'bold' },
+              padding: 20
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return ` ${context.dataset.label}: ${context.raw.toLocaleString('ar-EG')} ج.م`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: c.grid },
+            ticks: { color: c.dim, font: { family: 'Cairo', weight: 'bold' } }
+          },
+          y: {
+            grid: { color: c.grid },
+            ticks: {
+              color: c.dim,
+              font: { family: 'Cairo' },
+              callback: function(val) { return val.toLocaleString('ar-EG'); }
+            },
+            beginAtZero: true
+          }
         }
-    }
+      }
+    });
+  }
+}
 
-    // حساب قيم المحفظة وإعادة العرض
-    function renderPortfolio() {
-        const tbody = document.getElementById('portfolioTable');
-        tbody.innerHTML = '';
+// ---------- Stocks ----------
+function addStock(){
+  const name = document.getElementById('s_name').value;
+  const qty = parseFloat(document.getElementById('s_qty').value);
+  const avg = parseFloat(document.getElementById('s_avg').value);
+  const cur = parseFloat(document.getElementById('s_cur').value) || 0;
+  const target = parseFloat(document.getElementById('s_target').value) || 0;
+  if(!qty || !avg){ alert('من فضلك أدخل الكمية ومتوسط الشراء'); return; }
+  stocks.push({id:Date.now(), name, qty, avg, cur, target});
+  save('pf_stocks', stocks);
+  ['s_qty','s_avg','s_target'].forEach(id=>document.getElementById(id).value='');
+  renderAll();
+}
 
-        portfolio.forEach((item, index) => {
-            // اعتماد سعر الإغلاق كسعر حالي للسهم
-            const stockData = egxMarketData[item.symbol];
-            const currentPrice = stockData ? stockData.closingPrice : 0;
+function updateStockField(id, field, value){
+  const s = stocks.find(x=>x.id===id);
+  if(!s) return;
+  s[field] = parseFloat(value) || 0;
+  save('pf_stocks', stocks);
+  renderAll();
+}
 
-            const totalValue = item.quantity * currentPrice;
-            const totalCost = item.quantity * item.buyPrice;
-            const profitLoss = totalValue - totalCost;
-            const profitLossPercent = totalCost > 0 ? ((profitLoss / totalCost) * 100) : 0;
+function deleteStock(id){
+  stocks = stocks.filter(x=>x.id!==id);
+  save('pf_stocks', stocks);
+  renderAll();
+}
 
-            const classColor = profitLoss >= 0 ? 'profit' : 'loss';
-            const sign = profitLoss >= 0 ? '+' : '';
+// ---------- Fixed Income ----------
+function addFixed(){
+  const name = document.getElementById('f_name').value.trim();
+  const principal = parseFloat(document.getElementById('f_principal').value);
+  const rate = parseFloat(document.getElementById('f_rate').value);
+  if(!name || !principal || !rate){ alert('من فضلك أكمل جميع الحقول'); return; }
+  fixedIncome.push({id:Date.now(), name, principal, rate});
+  save('pf_fixed', fixedIncome);
+  ['f_name','f_principal','f_rate'].forEach(id=>document.getElementById(id).value='');
+  renderAll();
+}
+function deleteFixed(id){
+  fixedIncome = fixedIncome.filter(x=>x.id!==id);
+  save('pf_fixed', fixedIncome);
+  renderAll();
+}
+function futureValue(principal, rate, years){
+  return principal * Math.pow(1 + rate/100, years);
+}
 
-            tbody.innerHTML += `
-                <tr>
-                    <td>${item.name}</td>
-                    <td>${item.quantity}</td>
-                    <td>${item.buyPrice.toFixed(2)}</td>
-                    <td><strong>${currentPrice.toFixed(2)}</strong></td>
-                    <td>${item.targetPrice ? item.targetPrice.toFixed(2) : '-'}</td>
-                    <td>${totalValue.toFixed(2)} ج.م</td>
-                    <td class="${classColor}">${sign}${profitLoss.toFixed(2)} ج.م (${sign}${profitLossPercent.toFixed(1)}%)</td>
-                    <td><button onclick="deleteStock(${index})" style="background:#ff5252; color:#fff;">حذف</button></td>
-                </tr>
-            `;
-        });
-    }
+// ---------- Gold Section Management ----------
+function initGoldInputs(){
+  document.getElementById('g24_qty').value = goldData.g24_qty || '';
+  document.getElementById('g24_price').value = goldData.g24_price || '';
+  document.getElementById('g21_qty').value = goldData.g21_qty || '';
+  document.getElementById('g21_price').value = goldData.g21_price || '';
+}
 
-    // إضافة سهم جديد
-    function addStock() {
-        const symbol = document.getElementById('stockSelect').value;
-        const quantity = parseFloat(document.getElementById('quantity').value);
-        const buyPrice = parseFloat(document.getElementById('buyPrice').value);
-        const targetPrice = parseFloat(document.getElementById('targetPrice').value) || 0;
+function saveGoldToWealth(){
+  goldData = {
+    g24_qty: parseFloat(document.getElementById('g24_qty').value) || 0,
+    g24_price: parseFloat(document.getElementById('g24_price').value) || 0,
+    g21_qty: parseFloat(document.getElementById('g21_qty').value) || 0,
+    g21_price: parseFloat(document.getElementById('g21_price').value) || 0
+  };
+  save('pf_gold', goldData);
+  renderAll();
+  const statusEl = document.getElementById('goldStatus');
+  statusEl.textContent = 'تم حفظ الذهب وإضافته للثروة بنجاح! ✅';
+  statusEl.className = 'status-line ok';
+}
 
-        if (!symbol || !quantity || !buyPrice) {
-            alert("يرجى اختيار السهم وإدخال الكمية وسعر الشراء");
-            return;
+async function updateGoldPrices(){
+  const statusEl = document.getElementById('goldStatus');
+  statusEl.textContent = 'جاري جلب أسعار الذهب وصرف الجنيه... ⏳';
+  statusEl.className = 'status-line';
+
+  try {
+    let xauUsdPerOunce = null;
+
+    try {
+      const res = await fetch('https://api.gold-api.com/price/XAU');
+      if(res.ok) {
+        const data = await res.json();
+        if(data && data.price) xauUsdPerOunce = data.price;
+      }
+    } catch(e){}
+
+    if(!xauUsdPerOunce) {
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
+      const res = await fetch(proxyUrl);
+      if(res.ok) {
+        const data = await res.json();
+        if(data && data.items && data.items[0] && data.items[0].xauPrice) {
+          xauUsdPerOunce = data.items[0].xauPrice;
         }
-
-        portfolio.push({
-            symbol: symbol,
-            name: egxMarketData[symbol].name,
-            quantity: quantity,
-            buyPrice: buyPrice,
-            targetPrice: targetPrice
-        });
-
-        renderPortfolio();
+      }
     }
 
-    // حذف سهم
-    function deleteStock(index) {
-        portfolio.splice(index, 1);
-        renderPortfolio();
+    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب');
+
+    let usdToEgp = null;
+    try {
+      const fxResp = await fetch('https://open.er-api.com/v6/latest/USD');
+      if(fxResp.ok) {
+        const fxJson = await fxResp.json();
+        if(fxJson && fxJson.rates && fxJson.rates.EGP) usdToEgp = fxJson.rates.EGP;
+      }
+    } catch(e){}
+
+    if(!usdToEgp) {
+      const fxProxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.exchangerate-api.com/v4/latest/USD');
+      const fxResp = await fetch(fxProxy);
+      if(fxResp.ok) {
+        const fxJson = await fxResp.json();
+        if(fxJson && fxJson.rates && fxJson.rates.EGP) usdToEgp = fxJson.rates.EGP;
+      }
     }
 
-    // تشغيل التحديث فور فتح الصفحة
-    window.onload = function() {
-        renderPortfolio();
-    };
+    if(!usdToEgp) throw new Error('تعذر جلب سعر الجنيه');
+
+    const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
+    const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
+
+    document.getElementById('g24_price').value = pricePerGram24Egp.toFixed(2);
+    document.getElementById('g21_price').value = pricePerGram21Egp.toFixed(2);
+    
+    statusEl.textContent = 'تم جلب الأسعار بنجاح! انقر "إضافة / تحديث الذهب بالثروة" للحفظ. ✅';
+    statusEl.className = 'status-line ok';
+
+  } catch(err) {
+    console.error(err);
+    statusEl.textContent = 'تعذّر جلب البيانات تلقائيًا. أدخل الأسعار يدويًا.';
+    statusEl.className = 'status-line err';
+  }
+}
+
+// ---------- Render Portfolio Totals ----------
+function renderAll(){
+  // Stocks Table
+  const body = document.getElementById('stocksBody');
+  body.innerHTML = '';
+  document.getElementById('stocksEmpty').style.display = stocks.length ? 'none':'block';
+  let stocksValue = 0, stocksInvested = 0;
+
+  stocks.forEach(s=>{
+    const currentStockPrice = STOCK_PRICES[s.name] || s.cur || 0;
+    s.cur = currentStockPrice;
+
+    const value = s.qty * s.cur;
+    const cost = s.qty * s.avg;
+    stocksValue += value; 
+    stocksInvested += cost;
+    const gain = value - cost;
+    const gainPct = cost ? (gain/cost*100) : 0;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name-cell">${s.name}</td>
+      <td><input type="number" value="${s.qty}" onchange="updateStockField(${s.id},'qty',this.value)"></td>
+      <td><input type="number" step="0.01" value="${s.avg}" onchange="updateStockField(${s.id},'avg',this.value)"></td>
+      <td><strong style="color:var(--gold-soft);">${s.cur.toFixed(2)}</strong></td>
+      <td><input type="number" step="0.01" value="${s.target}" onchange="updateStockField(${s.id},'target',this.value)"></td>
+      <td>${fmt(value)}</td>
+      <td class="${gain>=0?'gain':'loss'}">${gain>=0?'+':''}${fmt(gain)} (${gainPct.toFixed(1)}%)</td>
+      <td><button class="btn-del" onclick="deleteStock(${s.id})">حذف</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  // Fixed Income Table
+  const fbody = document.getElementById('fixedBody');
+  fbody.innerHTML = '';
+  document.getElementById('fixedEmpty').style.display = fixedIncome.length ? 'none':'block';
+  let fixedTotal = 0;
+  fixedIncome.forEach(f=>{
+    fixedTotal += f.principal;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name-cell">${f.name}</td>
+      <td>${fmt(f.principal)}</td>
+      <td>${f.rate.toFixed(2)}%</td>
+      <td>${fmt(futureValue(f.principal,f.rate,1))}</td>
+      <td>${fmt(futureValue(f.principal,f.rate,2))}</td>
+      <td>${fmt(futureValue(f.principal,f.rate,3))}</td>
+      <td><button class="btn-del" onclick="deleteFixed(${f.id})">حذف</button></td>
+    `;
+    fbody.appendChild(tr);
+  });
+
+  // Gold Totals
+  const gold24Val = (goldData.g24_qty || 0) * (goldData.g24_price || 0);
+  const gold21Val = (goldData.g21_qty || 0) * (goldData.g21_price || 0);
+  const goldTotalVal = gold24Val + gold21Val;
+
+  document.getElementById('g24_total').textContent = fmt(gold24Val);
+  document.getElementById('g21_total').textContent = fmt(gold21Val);
+  document.getElementById('goldCalcTotal').textContent = fmt(goldTotalVal);
+
+  // Totals & Header Calculation
+  const totalValue = stocksValue + fixedTotal + goldTotalVal;
+  const totalInvested = stocksInvested + fixedTotal;
+  const totalGrowth = totalInvested ? ((stocksValue - stocksInvested) / stocksInvested * 100) : 0;
+
+  document.getElementById('totalValue').textContent = fmt(totalValue);
+  document.getElementById('sumStocks').textContent = fmt(stocksValue);
+  document.getElementById('sumGold').textContent = fmt(goldTotalVal);
+  document.getElementById('sumFixed').textContent = fmt(fixedTotal);
+  document.getElementById('sumInvested').textContent = fmt(totalInvested);
+
+  const pill = document.getElementById('growthPill');
+  pill.textContent = (totalGrowth>=0?'+':'') + totalGrowth.toFixed(2) + '% (نمو الأسهم)';
+  pill.className = 'growth-pill ' + (totalGrowth>=0?'up':'down');
+
+  // Update Dynamic Chart
+  renderChart(stocksValue, goldTotalVal, fixedTotal);
+}
+
+// Initializing
+initTheme();
+onStockSelectChange();
+initGoldInputs();
+renderAll();
 </script>
-
 </body>
 </html>
