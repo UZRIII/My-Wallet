@@ -381,58 +381,69 @@ function initTheme(){
 
 // ---------- Stock Prices Dictionary & Ticker Map ----------
 const STOCK_PRICES = {
-  "ORAS - أوراسكوم كونستراكشون": 850.02, 
-  "ETEL - المصرية للاتصالات": 38.50,
-  "EGAL - مصر للألومنيوم": 74.00,
-  "ADIB - مصرف أبوظبي الإسلامي": 41.50,
-  "EIFH - إيبيكو للأدوية": 46.00
+  "ORAS - أوراسكوم كونستراكشون": 850.02,
+  "ETEL - المصرية للاتصالات": 115.99,
+  "EGAL - مصر للألومنيوم": 374.00,
+  "ADIB - مصرف أبوظبي الإسلامي": 52.75,
+  "EIFH - إيبيكو للأدوية": 129.70
 };
 
 const STOCK_TICKERS = {
-  "ORAS - أوراسكوم كونستراكشون": "ORAS.CA",
-  "ETEL - المصرية للاتصالات": "ETEL.CA",
-  "EGAL - مصر للألومنيوم": "EGAL.CA",
-  "ADIB - مصرف أبوظبي الإسلامي": "ADIB.CA",
-  "EIFH - إيبيكو للأدوية": "PHAR.CA"
+  "ORAS - أوراسكوم كونستراكشون": "ORAS",
+  "ETEL - المصرية للاتصالات": "ETEL",
+  "EGAL - مصر للألومنيوم": "EGAL",
+  "ADIB - مصرف أبوظبي الإسلامي": "ADIB",
+  "EIFH - إيبيكو للأدوية": "PHAR"
 };
 
 // ---------- Dynamic EGX Price Auto Fetcher ----------
 async function fetchStockPrice(ticker) {
-    // استخدام query2 بدلاً من query1 لتفادي حظر Yahoo المباشر للبروكسيات
-    const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d`;
-    
-    // 1. المحاولة الأولى باستخدام AllOrigins JSON Wrapper (تتجاوز CORS تماماً)
-    try {
-        const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
-        if (response.ok) {
-            const wrapper = await response.json();
-            if (wrapper.contents) {
-                const data = JSON.parse(wrapper.contents);
-                const meta = data.chart?.result?.[0]?.meta;
-                if (meta && (meta.regularMarketPrice || meta.chartPreviousClose)) {
-                    return meta.regularMarketPrice || meta.chartPreviousClose;
-                }
-            }
+  const egxUrl = 'https://www.egx.com.eg/ar/prices.aspx';
+  const cache = JSON.parse(localStorage.getItem('pf_egx_prices') || '{}');
+
+  try {
+    const response = await fetch(egxUrl, {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'omit'
+    });
+    if (!response.ok) throw new Error('EGX HTTP ' + response.status);
+
+    const text = await response.text();
+    const code = ticker.toUpperCase();
+
+    // EGX may change its HTML layout, so try several flexible patterns.
+    const patterns = [
+      new RegExp(code + '[\\s\\S]{0,1200}?(?:سعر الإغلاق|الإغلاق|close|last)[^0-9]{0,100}([0-9]+(?:\\.[0-9]+)?)', 'i'),
+      new RegExp('(?:سعر الإغلاق|الإغلاق|close|last)[^0-9]{0,100}([0-9]+(?:\\.[0-9]+)?)[\\s\\S]{0,1200}?' + code, 'i'),
+      new RegExp(code + '[^0-9]{0,600}([0-9]+(?:\\.[0-9]+)?)', 'i')
+    ];
+
+    for (const p of patterns) {
+      const match = text.match(p);
+      if (match) {
+        const price = parseFloat(match[1]);
+        if (Number.isFinite(price) && price > 0) {
+          cache[ticker] = price;
+          localStorage.setItem('pf_egx_prices', JSON.stringify(cache));
+          return price;
         }
-    } catch (e) {
-        console.warn(`فشل جلب ${ticker} من المصدر الأول`);
+      }
     }
 
-    // 2. المحاولة الثانية عبر ThingProxy في حال تعثر البروكسي الأول
-    try {
-        const response = await fetch(`https://thingproxy.freeboard.io/fetch/${targetUrl}`);
-        if (response.ok) {
-            const data = await response.json();
-            const meta = data.chart?.result?.[0]?.meta;
-            if (meta && (meta.regularMarketPrice || meta.chartPreviousClose)) {
-                return meta.regularMarketPrice || meta.chartPreviousClose;
-            }
-        }
-    } catch (e) {
-        console.warn(`فشل جلب ${ticker} من المصدر الثاني`);
-    }
+    throw new Error('لم يتم العثور على السعر في بيانات EGX');
+  } catch (e) {
+    console.warn(`تعذر جلب ${ticker} من EGX:`, e);
+    return cache[ticker] || STOCK_PRICES_BY_DEFAULT[ticker] || null;
+  }
+}
 
-    return null;
+const STOCK_PRICES_BY_DEFAULT = {
+  "ORAS": 850.02,
+  "ETEL": 115.99,
+  "EGAL": 374.00,
+  "ADIB": 52.75,
+  "PHAR": 129.70
 }
 
 async function updateStocksFromEGX() {
@@ -864,7 +875,7 @@ window.onload = function() {
   renderAll();
   onStockSelectChange();
   
-  // تشغيل الجلب الأوتوماتيكي للأسهم فور فتح الصفحة
+  // تحديث تلقائي من EGX فور فتح الصفحة
   updateStocksFromEGX();
 };
 
