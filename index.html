@@ -396,33 +396,42 @@ const STOCK_TICKERS = {
   "EIFH - إيبيكو للأدوية": "PHAR.CA"
 };
 
-// ---------- Dynamic EGX Price Auto Fetcher (With Fallback Proxies) ----------
+// ---------- Dynamic EGX Price Auto Fetcher ----------
 async function fetchStockPrice(ticker) {
-    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
+    // استخدام query2 بدلاً من query1 لتفادي حظر Yahoo المباشر للبروكسيات
+    const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d`;
     
-    const proxies = [
-        url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-        url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-        url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-    ];
+    // 1. المحاولة الأولى باستخدام AllOrigins JSON Wrapper (تتجاوز CORS تماماً)
+    try {
+        const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+        if (response.ok) {
+            const wrapper = await response.json();
+            if (wrapper.contents) {
+                const data = JSON.parse(wrapper.contents);
+                const meta = data.chart?.result?.[0]?.meta;
+                if (meta && (meta.regularMarketPrice || meta.chartPreviousClose)) {
+                    return meta.regularMarketPrice || meta.chartPreviousClose;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn(`فشل جلب ${ticker} من المصدر الأول`);
+    }
 
-    for (const getProxyUrl of proxies) {
-        try {
-            const response = await fetch(getProxyUrl(targetUrl));
-            if (!response.ok) continue;
-
+    // 2. المحاولة الثانية عبر ThingProxy في حال تعثر البروكسي الأول
+    try {
+        const response = await fetch(`https://thingproxy.freeboard.io/fetch/${targetUrl}`);
+        if (response.ok) {
             const data = await response.json();
             const meta = data.chart?.result?.[0]?.meta;
-
             if (meta && (meta.regularMarketPrice || meta.chartPreviousClose)) {
                 return meta.regularMarketPrice || meta.chartPreviousClose;
             }
-        } catch (error) {
-            continue;
         }
+    } catch (e) {
+        console.warn(`فشل جلب ${ticker} من المصدر الثاني`);
     }
 
-    console.error(`فشل جلب سعر السهم ${ticker} من جميع البروكسيات.`);
     return null;
 }
 
