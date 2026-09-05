@@ -456,89 +456,153 @@ const STOCK_TICKERS = {
   "JUFO - جهينة": "JUFO"
 };
 
-// ---------- Dynamic EGX Price Auto Fetcher ----------
-async function fetchStockPrice(ticker) {
-  const egxUrl = 'https://www.egx.com.eg/ar/prices.aspx';
-  const cache = JSON.parse(localStorage.getItem('pf_egx_prices') || '{}');
+// ---------- Live EGX Price Auto Fetcher ----------
+// Primary: borsa EGX API (public demo). Secondary: EGXpilot.
+// EGX website scraping is kept only as a last fallback because direct
+// browser requests to egx.com.eg can be reset/blocked (as seen in Console).
+const PRICE_APIS = [
+  ticker => `https://demo.borsa.ashh.me/demo/quote/${encodeURIComponent(ticker)}`,
+  ticker => `https://egxpilot.com/api/stocks/${encodeURIComponent(ticker)}`
+];
 
+function readPriceFromPayload(data) {
+  if (!data) return null;
+
+  const candidates = [
+    data.price, data.last, data.lastPrice, data.close, data.currentPrice,
+    data.current, data.value, data.quote?.price, data.quote?.last,
+    data.data?.price, data.data?.last, data.data?.lastPrice,
+    data.data?.close, data.data?.currentPrice, data.data?.quote?.price,
+    data.result?.price, data.result?.last, data.result?.close
+  ];
+
+  for (const v of candidates) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  // Some APIs return an array of quote objects.
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const n = readPriceFromPayload(item);
+      if (n) return n;
+    }
+  }
+
+  return null;
+}
+
+async function fetchJsonWithTimeout(url, ms = 9000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
   try {
-    const response = await fetch(egxUrl, {
+    const response = await fetch(url, {
       method: 'GET',
       cache: 'no-store',
-      credentials: 'omit'
+      mode: 'cors',
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
     });
-    if (!response.ok) throw new Error('EGX HTTP ' + response.status);
-
-    const text = await response.text();
-    const code = ticker.toUpperCase();
-
-    // EGX may change its HTML layout, so try several flexible patterns.
-    const patterns = [
-      new RegExp(code + '[\\s\\S]{0,1200}?(?:سعر الإغلاق|الإغلاق|close|last)[^0-9]{0,100}([0-9]+(?:\\.[0-9]+)?)', 'i'),
-      new RegExp('(?:سعر الإغلاق|الإغلاق|close|last)[^0-9]{0,100}([0-9]+(?:\\.[0-9]+)?)[\\s\\S]{0,1200}?' + code, 'i'),
-      new RegExp(code + '[^0-9]{0,600}([0-9]+(?:\\.[0-9]+)?)', 'i')
-    ];
-
-    for (const p of patterns) {
-      const match = text.match(p);
-      if (match) {
-        const price = parseFloat(match[1]);
-        if (Number.isFinite(price) && price > 0) {
-          cache[ticker] = price;
-          localStorage.setItem('pf_egx_prices', JSON.stringify(cache));
-          return price;
-        }
-      }
-    }
-
-    throw new Error('لم يتم العثور على السعر في بيانات EGX');
-  } catch (e) {
-    console.warn(`تعذر جلب ${ticker} من EGX:`, e);
-    return cache[ticker] || STOCK_PRICES_BY_DEFAULT[ticker] || null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-const STOCK_PRICES_BY_DEFAULT = {};
+async function fetchStockPrice(ticker) {
+  const cache = JSON.parse(localStorage.getItem('pf_egx_prices') || '{}');
+  const errors = [];
+
+  for (const makeUrl of PRICE_APIS) {
+    const url = makeUrl(ticker);
+    try {
+      const data = await fetchJsonWithTimeout(url, 9000);
+      const price = readPriceFromPayload(data);
+
+      if (price) {
+        cache[ticker] = {
+          price,
+          updatedAt: Date.now(),
+          source: url.includes('borsa.ashh.me') ? 'borsa' : 'egxpilot'
+        };
+        localStorage.setItem('pf_egx_prices', JSON.stringify(cache));
+        return { price, live: true, source: cache[ticker].source };
+      }
+
+      errors.push('لم يتم العثور على السعر');
+    } catch (e) {
+      errors.push(e.name === 'AbortError' ? 'timeout' : e.message);
+    }
+  }
+
+  // Last-known value is ONLY a stale fallback; it is never presented as live.
+  const cached = cache[ticker];
+  if (cached && Number(cached.price) > 0) {
+    return { price: Number(cached.price), live: false, source: 'cache', error: errors.join(' | ') };
+  }
+
+  return { price: null, live: false, source: null, error: errors.join(' | ') };
+}
 
 async function updateStocksFromEGX() {
-    const statusEl = document.getElementById('stocksStatus');
-    if(statusEl) {
-        statusEl.textContent = 'جاري تحديث أسعار الأسهم من البورصة... ⏳';
-        statusEl.className = 'status-line';
+  const statusEl = document.getElementById('stocksStatus');
+  if (statusEl) {
+    statusEl.textContent = 'جاري تحديث أسعار الأسهم من مصدر السوق... ⏳';
+    statusEl.className = 'status-line';
+  }
+
+  let updatedCount = 0;
+  let staleCount = 0;
+  let failedCount = 0;
+
+  // Parallel requests make the refresh much faster than waiting 37 requests one by one.
+  const entries = Object.entries(STOCK_TICKERS);
+  const results = await Promise.all(entries.map(async ([name, ticker]) => {
+    const result = await fetchStockPrice(ticker);
+    return { name, ticker, ...result };
+  }));
+
+  for (const result of results) {
+    if (result.price) {
+      STOCK_PRICES[result.name] = result.price;
+
+      stocks.forEach(s => {
+        if (s.name === result.name) s.cur = result.price;
+      });
+
+      if (result.live) updatedCount++;
+      else staleCount++;
+    } else {
+      failedCount++;
     }
+  }
 
-    let updatedCount = 0;
+  save('pf_stocks', stocks);
+  renderAll();
+  onStockSelectChange();
 
-    for (let [name, ticker] of Object.entries(STOCK_TICKERS)) {
-        const price = await fetchStockPrice(ticker);
-        if (price) {
-            STOCK_PRICES[name] = price;
-            stocks.forEach(s => {
-                if (s.name === name) s.cur = price;
-            });
-            updatedCount++;
-        }
+  const now = new Date().toLocaleTimeString('ar-EG');
+
+  if (statusEl) {
+    if (updatedCount > 0) {
+      const staleText = staleCount ? ` | ${staleCount} سعر قديم مؤقتًا` : '';
+      const failText = failedCount ? ` | ${failedCount} لم يصل سعرها` : '';
+      statusEl.textContent =
+        `تم تحديث ${updatedCount} سهم من مصدر الأسعار ✅ آخر تحديث: ${now}${staleText}${failText}`;
+      statusEl.className = failedCount > 0 || staleCount > 0 ? 'status-line' : 'status-line ok';
+    } else {
+      statusEl.textContent =
+        'لم يصل أي سعر حي من مصادر الأسعار. راجع الاتصال بالإنترنت أو مصدر البيانات. ❌';
+      statusEl.className = 'status-line err';
     }
-
-    save('pf_stocks', stocks);
-    renderAll();
-    onStockSelectChange();
-
-    if(statusEl) {
-        if (updatedCount > 0) {
-            statusEl.textContent = `تم تحديث أسعار الأسهم بنجاح! ✅ آخر تحديث: ${new Date().toLocaleTimeString('ar-EG')}`;
-            statusEl.className = 'status-line ok';
-        } else {
-            statusEl.textContent = 'تعذر تحديث الأسعار تلقائياً، تم الاعتماد على الأسعار المحلية.';
-            statusEl.className = 'status-line err';
-        }
-    }
+  }
 }
 
 function onStockSelectChange(){
   const selectedStock = document.getElementById('s_name').value;
   const price = STOCK_PRICES[selectedStock] || 0;
-  document.getElementById('s_cur').value = price.toFixed(2);
+  document.getElementById('s_cur').value = price ? price.toFixed(2) : '';
 }
 
 // ---------- Storage ----------
