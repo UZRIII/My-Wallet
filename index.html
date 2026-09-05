@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>محفظتي الاستثمارية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Zain:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root{
     --bg:#0E1F1C;
@@ -17,6 +19,7 @@
     --gold:#D4AF37;
     --gold-soft:#F0DFA0;
     --green:#4ADE80;
+    --blue:#38BDF8;
     --red:#F87171;
     --radius:14px;
   }
@@ -70,6 +73,13 @@
   }
   .section-sub{color:var(--ink-dim); font-size:.85rem; margin-bottom:16px;}
 
+  /* Chart Layout */
+  .chart-container {
+    position: relative;
+    max-width: 360px;
+    margin: 10px auto;
+  }
+
   table{width:100%; border-collapse:collapse; font-size:.92rem;}
   th,td{padding:10px 8px; text-align:center; border-bottom:1px solid var(--line);}
   th{color:var(--ink-dim); font-weight:600; font-size:.8rem;}
@@ -101,7 +111,7 @@
   .btn-primary:hover{background:var(--gold-soft);}
   .btn-del{background:transparent; color:var(--red); border:1px solid rgba(248,113,113,.3); padding:5px 10px; font-size:.8rem;}
 
-  /* Gold Section Specific */
+  /* Gold Section */
   .gold-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
   @media(max-width:700px){.gold-grid{grid-template-columns:1fr;}}
   .gold-card{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
@@ -150,6 +160,15 @@
       <div class="b-item"><div class="label">رأس المال المستثمر (أسهم + دخل ثابت)</div><div class="val" id="sumInvested">0</div></div>
     </div>
   </div>
+
+  <!-- CHART SECTION -->
+  <section>
+    <h2>📊 توزيع الثروة حسب الأصول</h2>
+    <div class="section-sub">نسبة كل أصل من إجمالي محفظتك الاستثمارية.</div>
+    <div class="chart-container">
+      <canvas id="wealthChart"></canvas>
+    </div>
+  </section>
 
   <!-- STOCKS -->
   <section>
@@ -290,6 +309,57 @@ let goldData = load('pf_gold', {g24_qty:0, g24_price:0, g21_qty:0, g21_price:0})
 
 const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2}) + ' ج.م';
 
+// ---------- Chart Handling ----------
+let wealthChartInstance = null;
+
+function renderChart(stocksVal, goldVal, fixedVal){
+  const total = stocksVal + goldVal + fixedVal;
+  const ctx = document.getElementById('wealthChart').getContext('2d');
+
+  const chartData = {
+    labels: ['الأسهم 📈', 'الذهب 🪙', 'الدخل الثابت 🏦'],
+    datasets: [{
+      data: [stocksVal, goldVal, fixedVal],
+      backgroundColor: ['#4ADE80', '#D4AF37', '#38BDF8'],
+      borderColor: '#0E2B26',
+      borderWidth: 3,
+      hoverOffset: 6
+    }]
+  };
+
+  if(wealthChartInstance){
+    wealthChartInstance.data = chartData;
+    wealthChartInstance.update();
+  } else {
+    wealthChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: chartData,
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#EAF3F0',
+              font: { family: 'Cairo', size: 13, weight: 'bold' },
+              padding: 16
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const val = context.raw || 0;
+                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                return ` ${context.label}: ${val.toLocaleString('ar-EG')} ج.م (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
 // ---------- Stocks ----------
 function addStock(){
   const name = document.getElementById('s_name').value;
@@ -318,7 +388,7 @@ function deleteStock(id){
   renderAll();
 }
 
-// ---------- Fixed income ----------
+// ---------- Fixed Income ----------
 function addFixed(){
   const name = document.getElementById('f_name').value.trim();
   const principal = parseFloat(document.getElementById('f_principal').value);
@@ -387,7 +457,7 @@ async function updateGoldPrices(){
       }
     }
 
-    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب من المصادر');
+    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب');
 
     let usdToEgp = null;
     try {
@@ -407,7 +477,7 @@ async function updateGoldPrices(){
       }
     }
 
-    if(!usdToEgp) throw new Error('تعذر جلب سعر صرف الجنيه المصري');
+    if(!usdToEgp) throw new Error('تعذر جلب سعر الجنيه');
 
     const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
     const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
@@ -487,7 +557,7 @@ function renderAll(){
   document.getElementById('g21_total').textContent = fmt(gold21Val);
   document.getElementById('goldCalcTotal').textContent = fmt(goldTotalVal);
 
-  // Portfolio Totals (Stocks + Fixed Income + Gold)
+  // Totals & Header Calculation
   const totalValue = stocksValue + fixedTotal + goldTotalVal;
   const totalInvested = stocksInvested + fixedTotal;
   const totalGrowth = totalInvested ? ((stocksValue - stocksInvested) / stocksInvested * 100) : 0;
@@ -501,9 +571,12 @@ function renderAll(){
   const pill = document.getElementById('growthPill');
   pill.textContent = (totalGrowth>=0?'+':'') + totalGrowth.toFixed(2) + '% (نمو الأسهم)';
   pill.className = 'growth-pill ' + (totalGrowth>=0?'up':'down');
+
+  // Update Dynamic Chart
+  renderChart(stocksValue, goldTotalVal, fixedTotal);
 }
 
-// Initial Call
+// Initializing
 onStockSelectChange();
 initGoldInputs();
 renderAll();
