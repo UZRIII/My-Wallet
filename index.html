@@ -210,7 +210,6 @@
 </head>
 <body>
 
-<!-- Fixed Theme Switcher Buttons -->
 <div class="theme-switcher">
   <div class="theme-btn btn-green active" onclick="setTheme('green')" title="الثيم الأخضر الأساسي"></div>
   <div class="theme-btn btn-beige" onclick="setTheme('beige')" title="الثيم البيج"></div>
@@ -237,7 +236,7 @@
   <!-- STOCKS -->
   <section>
     <h2>📈 محفظة الأسهم</h2>
-    <div class="section-sub">يتم تحديث أسعار كافة الأسهم المتاحة بالقائمة تلقائياً بناءً على (سعر الإغلاق) بالبورصة المصرية.</div>
+    <div class="section-sub">يتم تحديث أسعار كافة الأسهم المتاحة بالقائمة تلقائياً بناءً على سعر الإغلاق بالبورصة المصرية.</div>
     
     <div style="margin-bottom: 16px;">
       <button class="btn-primary" onclick="updateStocksFromEGX()">🔄 تحديث الأسعار من البورصة</button>
@@ -380,7 +379,7 @@ function initTheme(){
   setTheme(savedTheme);
 }
 
-// ---------- Stock Prices Dictionary (Fallback Defaults) ----------
+// ---------- Stock Prices Dictionary & Ticker Map ----------
 const STOCK_PRICES = {
   "ORAS - أوراسكوم كونستراكشون": 850.02, 
   "ETEL - المصرية للاتصالات": 38.50,
@@ -389,122 +388,65 @@ const STOCK_PRICES = {
   "EIFH - إيبيكو للأدوية": 46.00
 };
 
-// ---------- Dynamic EGX Price Auto Fetcher (All Dropdown Options) ----------
-async function updateStocksFromEGX() {
-    const statusEl = document.getElementById('stocksStatus');
-    statusEl.textContent = 'جاري البحث عن أسعار الإغلاق لجميع الأسهم بالمحافظ والاختيارات... ⏳';
-    statusEl.className = 'status-line';
+const STOCK_TICKERS = {
+  "ORAS - أوراسكوم كونستراكشون": "ORAS.CA",
+  "ETEL - المصرية للاتصالات": "ETEL.CA",
+  "EGAL - مصر للألومنيوم": "EGAL.CA",
+  "ADIB - مصرف أبوظبي الإسلامي": "ADIB.CA",
+  "EIFH - إيبيكو للأدوية": "PHAR.CA"
+};
+
+// ---------- Dynamic EGX Price Auto Fetcher ----------
+async function fetchStockPrice(ticker) {
+    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
 
     try {
-        const targetUrl = 'https://www.egx.com.eg/ar/prices.aspx';
-        // استخدام عدة سيرفرات بديلة لتفادي خطأ Failed to fetch
-        const proxies = [
-            { url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl), type: 'text' },
-            { url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), type: 'json' },
-            { url: 'https://corsproxy.io/?' + encodeURIComponent(targetUrl), type: 'text' }
-        ];
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('فشل في الاستجابة');
 
-        let html = '';
-        let success = false;
+        const data = await response.json();
+        const meta = data.chart.result[0].meta;
 
-        // المرور على السيرفرات البديلة حتى ينجح أحدهم
-        for (const proxy of proxies) {
-            try {
-                const response = await fetch(proxy.url);
-                if (!response.ok) continue;
-                
-                if (proxy.type === 'json') {
-                    const data = await response.json();
-                    if (data && data.contents) {
-                        html = data.contents;
-                        success = true;
-                        break;
-                    }
-                } else {
-                    html = await response.text();
-                    if (html) {
-                        success = true;
-                        break;
-                    }
-                }
-            } catch (e) {
-                console.warn('Proxy failed:', proxy.url);
-            }
-        }
+        return meta.regularMarketPrice || meta.chartPreviousClose || null;
+    } catch (error) {
+        console.error(`خطأ في جلب سعر السهم ${ticker}:`, error);
+        return null;
+    }
+}
 
-        if (!success || !html) {
-            throw new Error('فشل الاتصال بموقع البورصة عبر جميع السيرفرات البديلة.');
-        }
-        
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        
-        // توسيع نطاق البحث لضمان قراءة السعر حتى لو تغير تصميم موقع البورصة
-        const headers = Array.from(doc.querySelectorAll('th, .tableHead, tr:first-child td'));
-        const closePriceIdx = headers.findIndex(th => th.textContent.includes('الاغلاق') || th.textContent.includes('الإغلاق') || th.textContent.includes('اخر سعر'));
-        const nameIdx = headers.findIndex(th => th.textContent.includes('اسم الشركة') || th.textContent.includes('الشركة'));
-        const tickerIdx = headers.findIndex(th => th.textContent.includes('كود') || th.textContent.includes('رمز'));
-        
-        if (closePriceIdx === -1 || nameIdx === -1) {
-            throw new Error('لم نتمكن من تحديد أعمدة الأسعار في جدول موقع البورصة.');
-        }
+async function updateStocksFromEGX() {
+    const statusEl = document.getElementById('stocksStatus');
+    if(statusEl) {
+        statusEl.textContent = 'جاري تحديث أسعار الأسهم من البورصة... ⏳';
+        statusEl.className = 'status-line';
+    }
 
-        const rows = doc.querySelectorAll('table tr');
-        const selectEl = document.getElementById('s_name');
-        const dropdownOptions = Array.from(selectEl.options).map(opt => opt.value);
+    let updatedCount = 0;
 
-        let updatedCount = 0;
-
-        rows.forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length > Math.max(closePriceIdx, nameIdx)) {
-                const companyName = cells[nameIdx].textContent.trim();
-                const ticker = tickerIdx !== -1 ? cells[tickerIdx].textContent.trim() : '';
-                
-                // تحويل الأرقام العربية للإنجليزية إن وجدت وإزالة الفواصل
-                let closePriceText = cells[closePriceIdx].textContent.trim()
-                    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
-                    .replace(/,/g, '');
-                
-                const cleanPrice = parseFloat(closePriceText);
-                
-                if (!isNaN(cleanPrice) && cleanPrice > 0) {
-                    dropdownOptions.forEach(optVal => {
-                        const parts = optVal.split(' - ');
-                        const optCode = parts[0] ? parts[0].trim() : '';
-                        const optName = parts[1] ? parts[1].trim() : optVal;
-
-                        const cleanOptName = optName.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
-                        const cleanCompName = companyName.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
-
-                        if ((optCode && (ticker.includes(optCode) || companyName.includes(optCode))) || cleanCompName.includes(cleanOptName)) {
-                            STOCK_PRICES[optVal] = cleanPrice;
-                            updatedCount++;
-                        }
-                    });
-                }
-            }
-        });
-
-        if (updatedCount > 0) {
-            statusEl.textContent = `✅ تم تحديث أسعار الأسهم المتاحة بنجاح!`;
-            statusEl.className = 'status-line ok';
-            
+    for (let [name, ticker] of Object.entries(STOCK_TICKERS)) {
+        const price = await fetchStockPrice(ticker);
+        if (price) {
+            STOCK_PRICES[name] = price;
             stocks.forEach(s => {
-                if (STOCK_PRICES[s.name]) s.cur = STOCK_PRICES[s.name];
+                if (s.name === name) s.cur = price;
             });
-            save('pf_stocks', stocks);
-            
-            onStockSelectChange(); 
-            renderAll();
-        } else {
-             throw new Error('الأسهم غير موجودة في الجدول حالياً.');
+            updatedCount++;
         }
+    }
 
-    } catch (err) {
-        console.error(err);
-        statusEl.textContent = 'تعذر جلب الأسعار التلقائي: ' + err.message;
-        statusEl.className = 'status-line err';
+    save('pf_stocks', stocks);
+    renderAll();
+    onStockSelectChange();
+
+    if(statusEl) {
+        if (updatedCount > 0) {
+            statusEl.textContent = `تم تحديث أسعار الأسهم بنجاح! ✅`;
+            statusEl.className = 'status-line ok';
+        } else {
+            statusEl.textContent = 'تعذر تحديث الأسعار تلقائياً، تم الاعتماد على الأسعار المحلية.';
+            statusEl.className = 'status-line err';
+        }
     }
 }
 
@@ -894,8 +836,9 @@ window.onload = function() {
   initTheme();
   initGoldInputs();
   renderAll();
+  onStockSelectChange();
   
-  // تشغيل الجلب الأوتوماتيكي لكل الاختيارات فور فتح الصفحة
+  // تشغيل الجلب الأوتوماتيكي للأسهم فور فتح الصفحة
   updateStocksFromEGX();
 };
 
