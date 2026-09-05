@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>محفظتي الاستثمارية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Zain:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1F1C;
+    --panel:#123832;
+    --panel-2:#0E2B26;
+    --line:#1F4A42;
+    --ink:#EAF3F0;
+    --ink-dim:#9FC2BA;
+    --gold:#D4AF37;
+    --gold-soft:#F0DFA0;
+    --green:#4ADE80;
+    --red:#F87171;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 80% -10%, #163f38 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:'Cairo', sans-serif;
+    padding:24px 16px 60px;
+    line-height:1.6;
+  }
+  h1,h2,h3{font-weight:800; margin:0;}
+  .wrap{max-width:1000px; margin:0 auto;}
+
+  /* Header / summary */
+  .summary{
+    background:linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:24px;
+    margin-bottom:28px;
+  }
+  .summary-top{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;}
+  .summary-top h1{font-size:1.15rem; color:var(--ink-dim); font-weight:600;}
+  .total-value{font-size:2.4rem; font-weight:800; letter-spacing:.5px;}
+  .growth-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 14px; border-radius:999px; font-weight:700; font-size:.95rem;
+  }
+  .growth-pill.up{background:rgba(74,222,128,.15); color:var(--green);}
+  .growth-pill.down{background:rgba(248,113,113,.15); color:var(--red);}
+  .breakdown{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:14px; margin-top:20px;
+  }
+  .b-item{background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  .b-item .label{color:var(--ink-dim); font-size:.8rem;}
+  .b-item .val{font-size:1.15rem; font-weight:700; margin-top:4px;}
+
+  /* Sections */
+  section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:24px;
+  }
+  section > h2{
+    font-size:1.15rem; margin-bottom:4px; display:flex; align-items:center; gap:8px;
+  }
+  .section-sub{color:var(--ink-dim); font-size:.85rem; margin-bottom:16px;}
+
+  table{width:100%; border-collapse:collapse; font-size:.92rem;}
+  th,td{padding:10px 8px; text-align:center; border-bottom:1px solid var(--line);}
+  th{color:var(--ink-dim); font-weight:600; font-size:.8rem;}
+  td input{
+    width:90px; background:transparent; border:1px solid var(--line); border-radius:6px;
+    color:var(--ink); padding:6px; text-align:center; font-family:inherit; font-size:.9rem;
+  }
+  td input:focus{outline:1px solid var(--gold); border-color:var(--gold);}
+  .name-cell{text-align:right; font-weight:700;}
+  .gain{color:var(--green); font-weight:700;}
+  .loss{color:var(--red); font-weight:700;}
+
+  .add-row{
+    display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; align-items:flex-end;
+  }
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:.78rem; color:var(--ink-dim);}
+  .field input{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    color:var(--ink); padding:8px 10px; font-family:inherit; width:130px;
+  }
+  button{
+    font-family:inherit; cursor:pointer; border:none; border-radius:8px;
+    padding:9px 16px; font-weight:700; font-size:.88rem;
+  }
+  .btn-primary{background:var(--gold); color:#1a1400;}
+  .btn-primary:hover{background:var(--gold-soft);}
+  .btn-ghost{background:transparent; border:1px solid var(--line); color:var(--ink-dim);}
+  .btn-ghost:hover{color:var(--ink); border-color:var(--gold);}
+  .btn-del{background:transparent; color:var(--red); border:1px solid rgba(248,113,113,.3); padding:5px 10px; font-size:.8rem;}
+
+  .gold-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media(max-width:600px){.gold-grid{grid-template-columns:1fr;}}
+  .gold-card{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
+  .gold-card h3{color:var(--gold); font-size:1rem; margin-bottom:10px;}
+  .gold-fields{display:flex; gap:10px; flex-wrap:wrap;}
+
+  .status-line{font-size:.78rem; color:var(--ink-dim); margin-top:10px;}
+  .status-line.err{color:var(--red);}
+  .status-line.ok{color:var(--green);}
+
+  .empty{color:var(--ink-dim); font-size:.85rem; padding:12px 0; text-align:center;}
+
+  ::-webkit-scrollbar{height:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+  .table-scroll{overflow-x:auto;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="summary">
+    <div class="summary-top">
+      <h1>إجمالي الثروة</h1>
+      <span id="growthPill" class="growth-pill up">+0.00%</span>
+    </div>
+    <div class="total-value" id="totalValue">0 ج.م</div>
+    <div class="breakdown">
+      <div class="b-item"><div class="label">قيمة الأسهم</div><div class="val" id="sumStocks">0</div></div>
+      <div class="b-item"><div class="label">قيمة الذهب</div><div class="val" id="sumGold">0</div></div>
+      <div class="b-item"><div class="label">الدخل الثابت</div><div class="val" id="sumFixed">0</div></div>
+      <div class="b-item"><div class="label">إجمالي رأس المال المستثمر</div><div class="val" id="sumInvested">0</div></div>
+    </div>
+  </div>
+
+  <!-- STOCKS -->
+  <section>
+    <h2>📈 محفظة الأسهم</h2>
+    <div class="section-sub">سجّل أسهمك وحدّث السعر الحالي يدويًا يوميًا (لا يوجد API مجاني موثوق للبورصة المصرية يعمل من المتصفح مباشرة — التفاصيل أسفل الجدول).</div>
+    <div class="table-scroll">
+    <table id="stocksTable">
+      <thead>
+        <tr>
+          <th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالي</th>
+          <th>السعر المستهدف</th><th>القيمة الحالية</th><th>الربح/الخسارة</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="stocksBody"></tbody>
+    </table>
+    </div>
+    <div id="stocksEmpty" class="empty" style="display:none;">لا توجد أسهم مضافة بعد.</div>
+    <div class="add-row">
+      <div class="field"><label>اسم السهم</label><input id="s_name" placeholder="مثال: كوم إنفست"></div>
+      <div class="field"><label>الكمية</label><input id="s_qty" type="number" placeholder="0"></div>
+      <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" placeholder="0.00"></div>
+      <div class="field"><label>السعر الحالي</label><input id="s_cur" type="number" placeholder="0.00"></div>
+      <div class="field"><label>السعر المستهدف</label><input id="s_target" type="number" placeholder="0.00"></div>
+      <button class="btn-primary" onclick="addStock()">إضافة سهم</button>
+    </div>
+  </section>
+
+  <!-- GOLD -->
+  <section>
+    <h2>🪙 الذهب</h2>
+    <div class="section-sub">أدخل الكمية بالجرام، والسعر الحالي لكل عيار (يمكن تحديثه تلقائيًا بمحاولة سحب سعر الذهب العالمي وتحويله للجنيه، أو تعديله يدويًا حسب سعر الصاغة/البورصة المصرية).</div>
+    <div class="gold-grid">
+      <div class="gold-card">
+        <h3>عيار 21</h3>
+        <div class="gold-fields">
+          <div class="field"><label>الكمية (جرام)</label><input id="g21_qty" type="number" placeholder="0" onchange="renderAll()"></div>
+          <div class="field"><label>سعر الجرام</label><input id="g21_price" type="number" placeholder="0.00" onchange="renderAll()"></div>
+        </div>
+      </div>
+      <div class="gold-card">
+        <h3>عيار 24</h3>
+        <div class="gold-fields">
+          <div class="field"><label>الكمية (جرام)</label><input id="g24_qty" type="number" placeholder="0" onchange="renderAll()"></div>
+          <div class="field"><label>سعر الجرام</label><input id="g24_price" type="number" placeholder="0.00" onchange="renderAll()"></div>
+        </div>
+      </div>
+    </div>
+    <div class="add-row" style="margin-top:16px;">
+      <button class="btn-ghost" onclick="updateGoldPrices()">🔄 محاولة تحديث سعر الذهب تلقائيًا</button>
+    </div>
+    <div id="goldStatus" class="status-line"></div>
+  </section>
+
+  <!-- FIXED INCOME -->
+  <section>
+    <h2>🏦 الدخل الثابت (صكوك / شهادات بنكية)</h2>
+    <div class="section-sub">أدخل رأس المال ونسبة العائد السنوي، وسيحسب التطبيق القيمة المتوقعة بعد سنة وسنتين وثلاث سنوات (عائد مركب).</div>
+    <div class="table-scroll">
+    <table id="fixedTable">
+      <thead>
+        <tr>
+          <th>الاسم</th><th>رأس المال</th><th>العائد السنوي %</th>
+          <th>بعد سنة</th><th>بعد سنتين</th><th>بعد 3 سنوات</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="fixedBody"></tbody>
+    </table>
+    </div>
+    <div id="fixedEmpty" class="empty" style="display:none;">لا توجد شهادات أو صكوك مضافة بعد.</div>
+    <div class="add-row">
+      <div class="field"><label>الاسم</label><input id="f_name" placeholder="مثال: شهادة بنك مصر"></div>
+      <div class="field"><label>رأس المال</label><input id="f_principal" type="number" placeholder="0.00"></div>
+      <div class="field"><label>العائد السنوي %</label><input id="f_rate" type="number" placeholder="0.00"></div>
+      <button class="btn-primary" onclick="addFixed()">إضافة</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ---------- Storage ----------
+const load = (k, def) => JSON.parse(localStorage.getItem(k) || JSON.stringify(def));
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+let stocks = load('pf_stocks', []);
+let fixedIncome = load('pf_fixed', []);
+let goldData = load('pf_gold', {g21_qty:0, g21_price:0, g24_qty:0, g24_price:0});
+
+document.getElementById('g21_qty').value = goldData.g21_qty || '';
+document.getElementById('g21_price').value = goldData.g21_price || '';
+document.getElementById('g24_qty').value = goldData.g24_qty || '';
+document.getElementById('g24_price').value = goldData.g24_price || '';
+
+const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2}) + ' ج.م';
+
+// ---------- Stocks ----------
+function addStock(){
+  const name = document.getElementById('s_name').value.trim();
+  const qty = parseFloat(document.getElementById('s_qty').value);
+  const avg = parseFloat(document.getElementById('s_avg').value);
+  const cur = parseFloat(document.getElementById('s_cur').value) || avg;
+  const target = parseFloat(document.getElementById('s_target').value) || 0;
+  if(!name || !qty || !avg){ alert('من فضلك أدخل اسم السهم والكمية ومتوسط الشراء على الأقل'); return; }
+  stocks.push({id:Date.now(), name, qty, avg, cur, target});
+  save('pf_stocks', stocks);
+  ['s_name','s_qty','s_avg','s_cur','s_target'].forEach(id=>document.getElementById(id).value='');
+  renderAll();
+}
+function updateStockField(id, field, value){
+  const s = stocks.find(x=>x.id===id);
+  if(!s) return;
+  s[field] = parseFloat(value) || 0;
+  save('pf_stocks', stocks);
+  renderAll();
+}
+function deleteStock(id){
+  stocks = stocks.filter(x=>x.id!==id);
+  save('pf_stocks', stocks);
+  renderAll();
+}
+
+// ---------- Fixed income ----------
+function addFixed(){
+  const name = document.getElementById('f_name').value.trim();
+  const principal = parseFloat(document.getElementById('f_principal').value);
+  const rate = parseFloat(document.getElementById('f_rate').value);
+  if(!name || !principal || !rate){ alert('من فضلك أكمل جميع الحقول'); return; }
+  fixedIncome.push({id:Date.now(), name, principal, rate});
+  save('pf_fixed', fixedIncome);
+  ['f_name','f_principal','f_rate'].forEach(id=>document.getElementById(id).value='');
+  renderAll();
+}
+function deleteFixed(id){
+  fixedIncome = fixedIncome.filter(x=>x.id!==id);
+  save('pf_fixed', fixedIncome);
+  renderAll();
+}
+function futureValue(principal, rate, years){
+  return principal * Math.pow(1 + rate/100, years);
+}
+
+// ---------- Gold auto update (best-effort) ----------
+async function updateGoldPrices(){
+  const statusEl = document.getElementById('goldStatus');
+  statusEl.textContent = 'جاري المحاولة...';
+  statusEl.className = 'status-line';
+  try{
+    const goldResp = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
+    if(!goldResp.ok) throw new Error('gold fetch failed');
+    const goldJson = await goldResp.json();
+    const xauUsdPerOunce = goldJson.items[0].xauPrice;
+
+    const fxResp = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    if(!fxResp.ok) throw new Error('fx fetch failed');
+    const fxJson = await fxResp.json();
+    const usdToEgp = fxJson.rates.EGP;
+    if(!usdToEgp) throw new Error('no EGP rate');
+
+    const pricePerGram24Usd = xauUsdPerOunce / 31.1035;
+    const pricePerGram24Egp = pricePerGram24Usd * usdToEgp;
+    const pricePerGram21Egp = pricePerGram24Egp * (21/24);
+
+    document.getElementById('g24_price').value = pricePerGram24Egp.toFixed(2);
+    document.getElementById('g21_price').value = pricePerGram21Egp.toFixed(2);
+    renderAll();
+    statusEl.textContent = 'تم التحديث بناءً على سعر الذهب العالمي وسعر صرف الدولار (سعر تقريبي، قد يختلف قليلاً عن سعر الصاغة المحلي بسبب المصنعية).';
+    statusEl.className = 'status-line ok';
+  }catch(err){
+    statusEl.textContent = 'تعذّر التحديث التلقائي من المتصفح (غالبًا بسبب قيود CORS على المواقع). من فضلك أدخل السعر يدويًا حسب سعر البورصة المصرية اليوم.';
+    statusEl.className = 'status-line err';
+  }
+}
+
+// ---------- Render ----------
+function renderAll(){
+  // save gold manual fields
+  goldData = {
+    g21_qty: parseFloat(document.getElementById('g21_qty').value) || 0,
+    g21_price: parseFloat(document.getElementById('g21_price').value) || 0,
+    g24_qty: parseFloat(document.getElementById('g24_qty').value) || 0,
+    g24_price: parseFloat(document.getElementById('g24_price').value) || 0,
+  };
+  save('pf_gold', goldData);
+
+  // Stocks table
+  const body = document.getElementById('stocksBody');
+  body.innerHTML = '';
+  document.getElementById('stocksEmpty').style.display = stocks.length ? 'none':'block';
+  let stocksValue = 0, stocksInvested = 0;
+  stocks.forEach(s=>{
+    const value = s.qty * s.cur;
+    const cost = s.qty * s.avg;
+    stocksValue += value; stocksInvested += cost;
+    const gain = value - cost;
+    const gainPct = cost ? (gain/cost*100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name-cell">${s.name}</td>
+      <td>${s.qty}</td>
+      <td>${s.avg.toFixed(2)}</td>
+      <td><input type="number" value="${s.cur}" onchange="updateStockField(${s.id},'cur',this.value)"></td>
+      <td><input type="number" value="${s.target}" onchange="updateStockField(${s.id},'target',this.value)"></td>
+      <td>${fmt(value)}</td>
+      <td class="${gain>=0?'gain':'loss'}">${gain>=0?'+':''}${fmt(gain)} (${gainPct.toFixed(1)}%)</td>
+      <td><button class="btn-del" onclick="deleteStock(${s.id})">حذف</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  // Fixed income table
+  const fbody = document.getElementById('fixedBody');
+  fbody.innerHTML = '';
+  document.getElementById('fixedEmpty').style.display = fixedIncome.length ? 'none':'block';
+  let fixedTotal = 0;
+  fixedIncome.forEach(f=>{
+    fixedTotal += f.principal;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name-cell">${f.name}</td>
+      <td>${fmt(f.principal)}</td>
+      <td>${f.rate.toFixed(2)}%</td>
+      <td>${fmt(futureValue(f.principal,f.rate,1))}</td>
+      <td>${fmt(futureValue(f.principal,f.rate,2))}</td>
+      <td>${fmt(futureValue(f.principal,f.rate,3))}</td>
+      <td><button class="btn-del" onclick="deleteFixed(${f.id})">حذف</button></td>
+    `;
+    fbody.appendChild(tr);
+  });
+
+  // Gold value
+  const goldValue = (goldData.g21_qty*goldData.g21_price) + (goldData.g24_qty*goldData.g24_price);
+
+  // Totals
+  const totalValue = stocksValue + goldValue + fixedTotal;
+  const totalInvested = stocksInvested + goldValue + fixedTotal; // gold & fixed have no separate cost basis tracked
+  const growth = stocksInvested ? ((stocksValue - stocksInvested)/stocksInvested*100) : 0;
+
+  document.getElementById('totalValue').textContent = fmt(totalValue);
+  document.getElementById('sumStocks').textContent = fmt(stocksValue);
+  document.getElementById('sumGold').textContent = fmt(goldValue);
+  document.getElementById('sumFixed').textContent = fmt(fixedTotal);
+  document.getElementById('sumInvested').textContent = fmt(totalInvested);
+
+  const pill = document.getElementById('growthPill');
+  pill.textContent = (growth>=0?'+':'') + growth.toFixed(2) + '% (نمو الأسهم)';
+  pill.className = 'growth-pill ' + (growth>=0?'up':'down');
+}
+
+renderAll();
+</script>
+</body>
+</html>
