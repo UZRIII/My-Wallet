@@ -456,18 +456,17 @@ const STOCK_TICKERS = {
   "JUFO - جهينة": "JUFO"
 };
 
-// ---------- Live EGX Price Auto Fetcher ----------
-// Primary: borsa EGX API (public demo). Secondary: EGXpilot.
-// EGX website scraping is kept only as a last fallback because direct
-// browser requests to egx.com.eg can be reset/blocked (as seen in Console).
+// ---------- Live EGX Price Fetcher ----------
+// GitHub Pages is static, so direct calls to EGX/EGXpilot are blocked by browser CORS.
+// We use a public server-side reader as a transport layer, then parse the JSON response.
+// The page refreshes prices automatically; cached values are never counted as live.
 const PRICE_APIS = [
-  ticker => `https://demo.borsa.ashh.me/demo/quote/${encodeURIComponent(ticker)}`,
-  ticker => `https://egxpilot.com/api/stocks/${encodeURIComponent(ticker)}`
+  ticker => `https://r.jina.ai/https://egxpilot.com/api/stocks/${encodeURIComponent(ticker)}?t=${Date.now()}`,
+  ticker => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://egxpilot.com/api/stocks/${ticker}`)}&t=${Date.now()}`
 ];
 
 function readPriceFromPayload(data) {
   if (!data) return null;
-
   const candidates = [
     data.price, data.last, data.lastPrice, data.close, data.currentPrice,
     data.current, data.value, data.quote?.price, data.quote?.last,
@@ -475,126 +474,101 @@ function readPriceFromPayload(data) {
     data.data?.close, data.data?.currentPrice, data.data?.quote?.price,
     data.result?.price, data.result?.last, data.result?.close
   ];
-
   for (const v of candidates) {
     const n = Number(v);
     if (Number.isFinite(n) && n > 0) return n;
   }
-
-  // Some APIs return an array of quote objects.
   if (Array.isArray(data)) {
     for (const item of data) {
       const n = readPriceFromPayload(item);
       if (n) return n;
     }
   }
-
   return null;
 }
 
-async function fetchJsonWithTimeout(url, ms = 9000) {
+function parseMaybeJson(text) {
+  try { return JSON.parse(text); } catch (_) {}
+  // Jina may wrap JSON as text/markdown. Find the first JSON object/array.
+  const objectStart = Math.min(...[text.indexOf('{'), text.indexOf('[')].filter(x => x >= 0));
+  if (!Number.isFinite(objectStart)) return null;
+  const candidates = [text.slice(objectStart).trim()];
+  for (const candidate of candidates) {
+    try { return JSON.parse(candidate); } catch (_) {}
+  }
+  return null;
+}
+
+async function fetchTextWithTimeout(url, ms = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      mode: 'cors',
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' }
-    });
+    const response = await fetch(url, { cache:'no-store', signal:controller.signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
+    return await response.text();
+  } finally { clearTimeout(timer); }
 }
 
 async function fetchStockPrice(ticker) {
   const cache = JSON.parse(localStorage.getItem('pf_egx_prices') || '{}');
   const errors = [];
-
   for (const makeUrl of PRICE_APIS) {
-    const url = makeUrl(ticker);
     try {
-      const data = await fetchJsonWithTimeout(url, 9000);
+      const text = await fetchTextWithTimeout(makeUrl(ticker));
+      const data = parseMaybeJson(text);
       const price = readPriceFromPayload(data);
-
       if (price) {
-        cache[ticker] = {
-          price,
-          updatedAt: Date.now(),
-          source: url.includes('borsa.ashh.me') ? 'borsa' : 'egxpilot'
-        };
+        cache[ticker] = { price, updatedAt:Date.now(), source:'live-proxy' };
         localStorage.setItem('pf_egx_prices', JSON.stringify(cache));
-        return { price, live: true, source: cache[ticker].source };
+        return {price, live:true, source:'live-proxy'};
       }
-
-      errors.push('لم يتم العثور على السعر');
-    } catch (e) {
+      errors.push('لا يوجد سعر في الاستجابة');
+    } catch(e) {
       errors.push(e.name === 'AbortError' ? 'timeout' : e.message);
     }
   }
-
-  // Last-known value is ONLY a stale fallback; it is never presented as live.
   const cached = cache[ticker];
   if (cached && Number(cached.price) > 0) {
-    return { price: Number(cached.price), live: false, source: 'cache', error: errors.join(' | ') };
+    return {price:Number(cached.price), live:false, source:'cache', error:errors.join(' | ')};
   }
-
-  return { price: null, live: false, source: null, error: errors.join(' | ') };
+  return {price:null, live:false, source:null, error:errors.join(' | ')};
 }
+
+async function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 async function updateStocksFromEGX() {
   const statusEl = document.getElementById('stocksStatus');
-  if (statusEl) {
-    statusEl.textContent = 'جاري تحديث أسعار الأسهم من مصدر السوق... ⏳';
-    statusEl.className = 'status-line';
-  }
+  if (statusEl) { statusEl.textContent='جاري تحديث أسعار الأسهم من الإنترنت... ⏳'; statusEl.className='status-line'; }
 
-  let updatedCount = 0;
-  let staleCount = 0;
-  let failedCount = 0;
-
-  // Parallel requests make the refresh much faster than waiting 37 requests one by one.
-  const entries = Object.entries(STOCK_TICKERS);
-  const results = await Promise.all(entries.map(async ([name, ticker]) => {
-    const result = await fetchStockPrice(ticker);
-    return { name, ticker, ...result };
-  }));
-
-  for (const result of results) {
-    if (result.price) {
-      STOCK_PRICES[result.name] = result.price;
-
-      stocks.forEach(s => {
-        if (s.name === result.name) s.cur = result.price;
-      });
-
-      if (result.live) updatedCount++;
-      else staleCount++;
-    } else {
-      failedCount++;
+  let updatedCount=0, staleCount=0, failedCount=0;
+  const entries=Object.entries(STOCK_TICKERS);
+  // Keep anonymous proxy traffic below typical rate limits: 8 requests, then a pause.
+  for (let i=0; i<entries.length; i+=8) {
+    const chunk=entries.slice(i,i+8);
+    const results=await Promise.all(chunk.map(async ([name,ticker]) => ({name,ticker,...await fetchStockPrice(ticker)})));
+    for (const r of results) {
+      if (r.price) {
+        STOCK_PRICES[r.name]=r.price;
+        stocks.forEach(s=>{ if(s.name===r.name) s.cur=r.price; });
+        if(r.live) updatedCount++; else staleCount++;
+      } else failedCount++;
     }
+    if (i + 8 < entries.length) await sleep(4000);
   }
 
   save('pf_stocks', stocks);
   renderAll();
   onStockSelectChange();
-
-  const now = new Date().toLocaleTimeString('ar-EG');
-
-  if (statusEl) {
-    if (updatedCount > 0) {
-      const staleText = staleCount ? ` | ${staleCount} سعر قديم مؤقتًا` : '';
-      const failText = failedCount ? ` | ${failedCount} لم يصل سعرها` : '';
-      statusEl.textContent =
-        `تم تحديث ${updatedCount} سهم من مصدر الأسعار ✅ آخر تحديث: ${now}${staleText}${failText}`;
-      statusEl.className = failedCount > 0 || staleCount > 0 ? 'status-line' : 'status-line ok';
+  const now=new Date().toLocaleTimeString('ar-EG');
+  if(statusEl){
+    if(updatedCount>0){
+      const staleText=staleCount?` | ${staleCount} سعر قديم`:'';
+      const failText=failedCount?` | ${failedCount} لم يصل سعرها`:'';
+      statusEl.textContent=`تم تحديث ${updatedCount} سهم فعليًا ✅ آخر تحديث: ${now}${staleText}${failText}`;
+      statusEl.className=failedCount||staleCount?'status-line':'status-line ok';
     } else {
-      statusEl.textContent =
-        'لم يصل أي سعر حي من مصادر الأسعار. راجع الاتصال بالإنترنت أو مصدر البيانات. ❌';
-      statusEl.className = 'status-line err';
+      statusEl.textContent='لم يصل أي سعر حي. المصدر أو البروكسي غير متاح حاليًا. ❌';
+      statusEl.className='status-line err';
     }
   }
 }
