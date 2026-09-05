@@ -50,7 +50,7 @@
   .growth-pill.up{background:rgba(74,222,128,.15); color:var(--green);}
   .growth-pill.down{background:rgba(248,113,113,.15); color:var(--red);}
   .breakdown{
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
     gap:14px; margin-top:20px;
   }
   .b-item{background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
@@ -92,7 +92,6 @@
     color:var(--ink); padding:8px 10px; font-family:inherit; min-width:110px;
   }
   .field input:focus, .field select:focus{outline:1px solid var(--gold); border-color:var(--gold);}
-  .field input[readonly]{background:rgba(255,255,255,0.05); color:var(--gold-soft); cursor:not-allowed;}
   
   button{
     font-family:inherit; cursor:pointer; border:none; border-radius:8px;
@@ -102,7 +101,7 @@
   .btn-primary:hover{background:var(--gold-soft);}
   .btn-del{background:transparent; color:var(--red); border:1px solid rgba(248,113,113,.3); padding:5px 10px; font-size:.8rem;}
 
-  /* Gold Calculator Specific */
+  /* Gold Section Specific */
   .gold-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
   @media(max-width:700px){.gold-grid{grid-template-columns:1fr;}}
   .gold-card{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
@@ -110,9 +109,17 @@
   .gold-fields{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
   .calc-res{margin-top:12px; font-size:.9rem; color:var(--gold-soft); font-weight:700;}
 
-  .gold-calc-total{
-    margin-top:16px; padding:12px; background:rgba(212,175,55,.1); border:1px solid var(--gold);
-    border-radius:8px; text-align:center; font-size:1.1rem; font-weight:800; color:var(--gold);
+  .gold-actions{
+    margin-top:16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:12px;
+    padding:12px;
+    background:rgba(212,175,55,.08);
+    border:1px solid var(--gold);
+    border-radius:8px;
   }
 
   .status-line{font-size:.82rem; color:var(--ink-dim); margin-top:10px;}
@@ -129,7 +136,7 @@
 <body>
 <div class="wrap">
 
-  <!-- SUMMARY (Stocks + Fixed Income Only) -->
+  <!-- SUMMARY -->
   <div class="summary">
     <div class="summary-top">
       <h1>إجمالي الثروة</h1>
@@ -138,8 +145,9 @@
     <div class="total-value" id="totalValue">0 ج.م</div>
     <div class="breakdown">
       <div class="b-item"><div class="label">قيمة الأسهم</div><div class="val" id="sumStocks">0</div></div>
+      <div class="b-item"><div class="label">قيمة الذهب</div><div class="val" id="sumGold">0</div></div>
       <div class="b-item"><div class="label">الدخل الثابت</div><div class="val" id="sumFixed">0</div></div>
-      <div class="b-item"><div class="label">إجمالي رأس المال المستثمر</div><div class="val" id="sumInvested">0</div></div>
+      <div class="b-item"><div class="label">رأس المال المستثمر (أسهم + دخل ثابت)</div><div class="val" id="sumInvested">0</div></div>
     </div>
   </div>
 
@@ -178,10 +186,10 @@
     </div>
   </section>
 
-  <!-- STANDALONE GOLD CALCULATOR -->
+  <!-- GOLD SECTION -->
   <section>
-    <h2>🪙 حاسبة أسعار الذهب (أداة مستقلة)</h2>
-    <div class="section-sub">أداة حساب سريعة فقط. البيانات هنا <b>لا تحفظ</b> عند تحديث الصفحة و<b>لا تؤثر</b> على إجمالي الثروة.</div>
+    <h2>🪙 محفظة الذهب</h2>
+    <div class="section-sub">أدخل حيازتك من الذهب ليتم احتساب قيمتها وإضافتها مباشرة إلى إجمالي الثروة.</div>
     
     <div style="margin-bottom: 16px;">
       <button class="btn-primary" onclick="updateGoldPrices()">🔄 جلب أسعار الذهب الحالية من النت</button>
@@ -195,11 +203,11 @@
         <div class="gold-fields">
           <div class="field">
             <label>الكمية (جرام)</label>
-            <input id="g24_qty" type="number" step="0.01" placeholder="0" oninput="calcGold()">
+            <input id="g24_qty" type="number" step="0.01" placeholder="0">
           </div>
           <div class="field">
             <label>سعر الجرام (ج.م)</label>
-            <input id="g24_price" type="number" step="0.01" placeholder="0.00" oninput="calcGold()">
+            <input id="g24_price" type="number" step="0.01" placeholder="0.00">
           </div>
         </div>
         <div class="calc-res">القيمة: <span id="g24_total">0 ج.م</span></div>
@@ -211,19 +219,22 @@
         <div class="gold-fields">
           <div class="field">
             <label>الكمية (جرام)</label>
-            <input id="g21_qty" type="number" step="0.01" placeholder="0" oninput="calcGold()">
+            <input id="g21_qty" type="number" step="0.01" placeholder="0">
           </div>
           <div class="field">
             <label>سعر الجرام (ج.م)</label>
-            <input id="g21_price" type="number" step="0.01" placeholder="0.00" oninput="calcGold()">
+            <input id="g21_price" type="number" step="0.01" placeholder="0.00">
           </div>
         </div>
         <div class="calc-res">القيمة: <span id="g21_total">0 ج.م</span></div>
       </div>
     </div>
 
-    <div class="gold-calc-total">
-      إجمالي قيمة الذهب المحسوبة: <span id="goldCalcTotal">0 ج.م</span>
+    <div class="gold-actions">
+      <div style="font-size:1.1rem; font-weight:800; color:var(--gold);">
+        إجمالي الذهب: <span id="goldCalcTotal">0 ج.م</span>
+      </div>
+      <button class="btn-primary" onclick="saveGoldToWealth()">➕ إضافة / تحديث الذهب بالثروة</button>
     </div>
   </section>
 
@@ -254,7 +265,7 @@
 </div>
 
 <script>
-// ---------- Stock Live/Static Prices Dictionary ----------
+// ---------- Stock Prices Dictionary ----------
 const STOCK_PRICES = {
   "ORAS - أوراسكوم كونستراكشون": 285.00,
   "ETEL - المصرية للاتصالات": 38.50,
@@ -275,6 +286,7 @@ const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 let stocks = load('pf_stocks', []);
 let fixedIncome = load('pf_fixed', []);
+let goldData = load('pf_gold', {g24_qty:0, g24_price:0, g21_qty:0, g21_price:0});
 
 const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2}) + ' ج.م';
 
@@ -326,20 +338,26 @@ function futureValue(principal, rate, years){
   return principal * Math.pow(1 + rate/100, years);
 }
 
-// ---------- Gold Calculator ----------
-function calcGold(){
-  const g24_qty = parseFloat(document.getElementById('g24_qty').value) || 0;
-  const g24_price = parseFloat(document.getElementById('g24_price').value) || 0;
-  const g21_qty = parseFloat(document.getElementById('g21_qty').value) || 0;
-  const g21_price = parseFloat(document.getElementById('g21_price').value) || 0;
+// ---------- Gold Section Management ----------
+function initGoldInputs(){
+  document.getElementById('g24_qty').value = goldData.g24_qty || '';
+  document.getElementById('g24_price').value = goldData.g24_price || '';
+  document.getElementById('g21_qty').value = goldData.g21_qty || '';
+  document.getElementById('g21_price').value = goldData.g21_price || '';
+}
 
-  const total24 = g24_qty * g24_price;
-  const total21 = g21_qty * g21_price;
-  const grandTotal = total24 + total21;
-
-  document.getElementById('g24_total').textContent = fmt(total24);
-  document.getElementById('g21_total').textContent = fmt(total21);
-  document.getElementById('goldCalcTotal').textContent = fmt(grandTotal);
+function saveGoldToWealth(){
+  goldData = {
+    g24_qty: parseFloat(document.getElementById('g24_qty').value) || 0,
+    g24_price: parseFloat(document.getElementById('g24_price').value) || 0,
+    g21_qty: parseFloat(document.getElementById('g21_qty').value) || 0,
+    g21_price: parseFloat(document.getElementById('g21_price').value) || 0
+  };
+  save('pf_gold', goldData);
+  renderAll();
+  const statusEl = document.getElementById('goldStatus');
+  statusEl.textContent = 'تم حفظ الذهب وإضافته للثروة بنجاح! ✅';
+  statusEl.className = 'status-line ok';
 }
 
 async function updateGoldPrices(){
@@ -397,8 +415,7 @@ async function updateGoldPrices(){
     document.getElementById('g24_price').value = pricePerGram24Egp.toFixed(2);
     document.getElementById('g21_price').value = pricePerGram21Egp.toFixed(2);
     
-    calcGold();
-    statusEl.textContent = 'تم تحديث الأسعار الحالية بنجاح! ✅';
+    statusEl.textContent = 'تم جلب الأسعار بنجاح! انقر "إضافة / تحديث الذهب بالثروة" للحفظ. ✅';
     statusEl.className = 'status-line ok';
 
   } catch(err) {
@@ -417,7 +434,6 @@ function renderAll(){
   let stocksValue = 0, stocksInvested = 0;
 
   stocks.forEach(s=>{
-    // Always sync stock current price with the dictionary
     const currentStockPrice = STOCK_PRICES[s.name] || s.cur || 0;
     s.cur = currentStockPrice;
 
@@ -462,23 +478,34 @@ function renderAll(){
     fbody.appendChild(tr);
   });
 
-  // Portfolio Totals (Stocks + Fixed Income ONLY)
-  const totalValue = stocksValue + fixedTotal;
+  // Gold Totals
+  const gold24Val = (goldData.g24_qty || 0) * (goldData.g24_price || 0);
+  const gold21Val = (goldData.g21_qty || 0) * (goldData.g21_price || 0);
+  const goldTotalVal = gold24Val + gold21Val;
+
+  document.getElementById('g24_total').textContent = fmt(gold24Val);
+  document.getElementById('g21_total').textContent = fmt(gold21Val);
+  document.getElementById('goldCalcTotal').textContent = fmt(goldTotalVal);
+
+  // Portfolio Totals (Stocks + Fixed Income + Gold)
+  const totalValue = stocksValue + fixedTotal + goldTotalVal;
   const totalInvested = stocksInvested + fixedTotal;
-  const totalGrowth = totalInvested ? ((totalValue - totalInvested) / totalInvested * 100) : 0;
+  const totalGrowth = totalInvested ? ((stocksValue - stocksInvested) / stocksInvested * 100) : 0;
 
   document.getElementById('totalValue').textContent = fmt(totalValue);
   document.getElementById('sumStocks').textContent = fmt(stocksValue);
+  document.getElementById('sumGold').textContent = fmt(goldTotalVal);
   document.getElementById('sumFixed').textContent = fmt(fixedTotal);
   document.getElementById('sumInvested').textContent = fmt(totalInvested);
 
   const pill = document.getElementById('growthPill');
-  pill.textContent = (totalGrowth>=0?'+':'') + totalGrowth.toFixed(2) + '% (نمو المحفظة)';
+  pill.textContent = (totalGrowth>=0?'+':'') + totalGrowth.toFixed(2) + '% (نمو الأسهم)';
   pill.className = 'growth-pill ' + (totalGrowth>=0?'up':'down');
 }
 
 // Initial Call
 onStockSelectChange();
+initGoldInputs();
 renderAll();
 </script>
 </body>
