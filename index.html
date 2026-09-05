@@ -164,27 +164,100 @@
   <!-- GOLD -->
   <section>
     <h2>🪙 الذهب</h2>
-    <div class="section-sub">أدخل الكمية بالجرام، والسعر الحالي لكل عيار (يمكن تحديثه تلقائيًا بمحاولة سحب سعر الذهب العالمي وتحويله للجنيه، أو تعديله يدويًا حسب سعر الصاغة/البورصة المصرية).</div>
-    <div class="gold-grid">
-      <div class="gold-card">
-        <h3>عيار 21</h3>
-        <div class="gold-fields">
-          <div class="field"><label>الكمية (جرام)</label><input id="g21_qty" type="number" placeholder="0" onchange="renderAll()"></div>
-          <div class="field"><label>سعر الجرام</label><input id="g21_price" type="number" placeholder="0.00" onchange="renderAll()"></div>
-        </div>
-      </div>
-      <div class="gold-card">
-        <h3>عيار 24</h3>
-        <div class="gold-fields">
-          <div class="field"><label>الكمية (جرام)</label><input id="g24_qty" type="number" placeholder="0" onchange="renderAll()"></div>
-          <div class="field"><label>سعر الجرام</label><input id="g24_price" type="number" placeholder="0.00" onchange="renderAll()"></div>
-        </div>
-      </div>
-    </div>
-    <div class="add-row" style="margin-top:16px;">
-      <button class="btn-ghost" onclick="updateGoldPrices()">🔄 محاولة تحديث سعر الذهب تلقائيًا</button>
-    </div>
-    <div id="goldStatus" class="status-line"></div>
+    
+    <label>اختر العيار</label>
+    <select id="caratSelect">
+      <option value="21">عيار 21</option>
+      <option value="24" selected>عيار 24</option>
+    </select>
+    
+    <label>الكمية (جرام)</label>
+    <input id="qty" type="number" min="0" step="0.01" value="0" />
+    
+    <label>سعر الجرام (ج.م) — من المصدر</label>
+    <input id="pricePerGram" type="number" min="0" step="0.01" value="0" disabled />
+    
+    <label>إجمالي القيمة (ج.م)</label>
+    <input id="totalValue" type="number" min="0" step="0.01" value="0" disabled />
+    
+    <button id="btnUpdate">🔄 تحديث سعر الذهب من البورصة المصرية</button>
+    <p id="status"></p>
+    
+    <script>
+      const el = {
+        caratSelect: document.getElementById('caratSelect'),
+        qty: document.getElementById('qty'),
+        pricePerGram: document.getElementById('pricePerGram'),
+        totalValue: document.getElementById('totalValue'),
+        btnUpdate: document.getElementById('btnUpdate'),
+        status: document.getElementById('status')
+      };
+
+      // سنخزن أسعار 21 و24 بالجنيه
+      let price21Egp = null;
+      let price24Egp = null;
+
+      function compute() {
+        const qty = Number(el.qty.value || 0);
+        const carat = Number(el.caratSelect.value);
+
+        const price = (carat === 21) ? price21Egp : price24Egp;
+
+        if (!price || price <= 0) {
+          el.pricePerGram.value = (0).toFixed(2);
+          el.totalValue.value = (0).toFixed(2);
+          el.status.textContent = "لا يوجد سعر محدث بعد — اضغط تحديث ✅";
+          return;
+        }
+
+        el.pricePerGram.value = price.toFixed(2);
+        el.totalValue.value = (price * qty).toFixed(2);
+        el.status.textContent = "تم الحساب ✅ (السعر من المصدر)";
+      }
+
+      el.caratSelect.addEventListener('change', compute);
+      el.qty.addEventListener('input', compute);
+
+      async function fetchGoldPricesFromEgyptSource() {
+        /**
+         * ✅ هنا لازم نستخدم رابط “البورصة المصرية”/صفحة الأسعار التي تحتوي 21 و24 بالجنيه.
+         * 
+         * مثال:
+         * - إن كان المصدر JSON فيه price21 و price24:
+         *     return { price21: ..., price24: ... }
+         * - إن كان مجرد HTML:
+         *     نحتاج منك رابط الصفحة بالضبط لأكتب parsing مناسب.
+         */
+
+        const url = "PUT_YOUR_EGYPT_GOLD_21_24_SOURCE_URL_HERE";
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("فشل جلب سعر الذهب من المصدر");
+
+        const data = await res.json(); // لو المصدر JSON
+        // عدّل هذه السطور حسب شكل JSON الفعلي:
+        return {
+          price21: Number(data.price21),
+          price24: Number(data.price24),
+        };
+      }
+
+      el.btnUpdate.addEventListener('click', async () => {
+        el.status.textContent = "جارٍ التحديث... ⏳";
+        try {
+          const r = await fetchGoldPricesFromEgyptSource();
+          price21Egp = r.price21;
+          price24Egp = r.price24;
+          el.status.textContent = "تم تحديث أسعار 21 و24 ✅";
+          compute();
+        } catch (e) {
+          console.error(e);
+          el.status.textContent = "تعذر التحديث. أرسل رابط المصدر/الصفحة لتعديل جلب البيانات.";
+        }
+      });
+
+      compute();
+    </script>
   </section>
 
   <!-- FIXED INCOME -->
