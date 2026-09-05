@@ -301,21 +301,38 @@ async function updateGoldPrices(){
   const statusEl = document.getElementById('goldStatus');
   statusEl.textContent = 'جاري جلب أسعار الذهب وصرف الجنيه... ⏳';
   statusEl.className = 'status-line';
-  try{
-    // 1. Fetch Global Gold Price (XAU in USD per Troy Ounce)
-    const goldResp = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
-    if(!goldResp.ok) throw new Error('فشل جلب سعر الذهب العالمي');
-    const goldJson = await goldResp.json();
-    const xauUsdPerOunce = goldJson.items[0].xauPrice;
 
-    // 2. Fetch USD to EGP Exchange Rate
+  try {
+    let xauUsdPerOunce = null;
+
+    // المصدر الأول: API مجاني يدعم طلبات المتصفح المباشرة
+    try {
+      const res = await fetch('https://api.gold-api.com/price/XAU');
+      if(res.ok) {
+        const data = await res.json();
+        xauUsdPerOunce = data.price;
+      }
+    } catch(e) {}
+
+    // المصدر الثاني (احتياطي): الجلب عبر سيرفر وسيط لتجاوز حظر المتصفح
+    if(!xauUsdPerOunce) {
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
+      const res = await fetch(proxyUrl);
+      if(res.ok) {
+        const data = await res.json();
+        xauUsdPerOunce = data.items[0].xauPrice;
+      }
+    }
+
+    if(!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب');
+
+    // جلب سعر صرف الدولار مقابل الجنيه
     const fxResp = await fetch('https://open.er-api.com/v6/latest/USD');
-    if(!fxResp.ok) throw new Error('فشل جلب سعر الصرف');
+    if(!fxResp.ok) throw new Error('تعذر جلب سعر الصرف');
     const fxJson = await fxResp.json();
     const usdToEgp = fxJson.rates.EGP;
-    if(!usdToEgp) throw new Error('تعذر العثور على سعر صرف الجنيه المصري');
 
-    // 3. Calculate Gold Price per Gram in EGP (1 Troy Ounce = 31.1034768 grams)
+    // حساب سعر جرام عيار 24 وعيار 21 (الأونصة = 31.1035 جرام)
     const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
     const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
 
@@ -323,11 +340,12 @@ async function updateGoldPrices(){
     document.getElementById('g21_price').value = pricePerGram21Egp.toFixed(2);
     
     renderAll();
-    statusEl.textContent = 'تم التحديث بنجاح بناءً على سعر الذهب العالمي وسعر الصرف! ✅ (ملاحظة: قد تختلف أسعار الصاغة المحلية قليلاً عن السعر العالمي التلقائي).';
+    statusEl.textContent = 'تم التحديث بنجاح! ✅ (سعر الذهب العالمي محوّل للجنيه)';
     statusEl.className = 'status-line ok';
-  } catch(err){
+
+  } catch(err) {
     console.error(err);
-    statusEl.textContent = 'تعذّر التحديث التلقائي. يمكنك كتابة سعر الجرام يدويًا في الخانات المخصصة.';
+    statusEl.textContent = 'تعذّر جلب البيانات، تأكد من الاتصال بالإنترنت.';
     statusEl.className = 'status-line err';
   }
 }
