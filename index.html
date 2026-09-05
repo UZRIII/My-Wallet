@@ -87,11 +87,11 @@
   }
   .field{display:flex; flex-direction:column; gap:4px;}
   .field label{font-size:.78rem; color:var(--ink-dim);}
-  .field input{
+  .field input, .field select{
     background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
-    color:var(--ink); padding:8px 10px; font-family:inherit; width:110px;
+    color:var(--ink); padding:8px 10px; font-family:inherit; min-width:110px;
   }
-  .field input:focus{outline:1px solid var(--gold); border-color:var(--gold);}
+  .field input:focus, .field select:focus{outline:1px solid var(--gold); border-color:var(--gold);}
   
   button{
     font-family:inherit; cursor:pointer; border:none; border-radius:8px;
@@ -145,7 +145,7 @@
   <!-- STOCKS -->
   <section>
     <h2>📈 محفظة الأسهم</h2>
-    <div class="section-sub">سجّل أسهمك وحدّث السعر الحالي يدويًا.</div>
+    <div class="section-sub">اختر السهم وأدخل بيانات الكمية والأسعار لحسابه وإضافته للثروة.</div>
     <div class="table-scroll">
     <table id="stocksTable">
       <thead>
@@ -159,11 +159,20 @@
     </div>
     <div id="stocksEmpty" class="empty" style="display:none;">لا توجد أسهم مضافة بعد.</div>
     <div class="add-row">
-      <div class="field"><label>اسم السهم</label><input id="s_name" placeholder="مثال: كوم إنفست"></div>
+      <div class="field">
+        <label>اختر السهم</label>
+        <select id="s_name">
+          <option value="ORAS - أوراسكوم كونستراكشون">ORAS - أوراسكوم كونستراكشون</option>
+          <option value="ETEL - المصرية للاتصالات">ETEL - المصرية للاتصالات</option>
+          <option value="EGAL - مصر للألومنيوم">EGAL - مصر للألومنيوم</option>
+          <option value="ADIB - مصرف أبوظبي الإسلامي">ADIB - مصرف أبوظبي الإسلامي</option>
+          <option value="EIFH - إيبيكو للأدوية">EIFH - إيبيكو للأدوية</option>
+        </select>
+      </div>
       <div class="field"><label>الكمية</label><input id="s_qty" type="number" placeholder="0"></div>
-      <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" placeholder="0.00"></div>
-      <div class="field"><label>السعر الحالي</label><input id="s_cur" type="number" placeholder="0.00"></div>
-      <div class="field"><label>السعر المستهدف</label><input id="s_target" type="number" placeholder="0.00"></div>
+      <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>السعر الحالي</label><input id="s_cur" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>السعر المستهدف</label><input id="s_target" type="number" step="0.01" placeholder="0.00"></div>
       <button class="btn-primary" onclick="addStock()">إضافة سهم</button>
     </div>
   </section>
@@ -255,15 +264,15 @@ const fmt = n => (Number(n)||0).toLocaleString('ar-EG', {maximumFractionDigits:2
 
 // ---------- Stocks ----------
 function addStock(){
-  const name = document.getElementById('s_name').value.trim();
+  const name = document.getElementById('s_name').value;
   const qty = parseFloat(document.getElementById('s_qty').value);
   const avg = parseFloat(document.getElementById('s_avg').value);
   const cur = parseFloat(document.getElementById('s_cur').value) || avg;
   const target = parseFloat(document.getElementById('s_target').value) || 0;
-  if(!name || !qty || !avg){ alert('من فضلك أدخل اسم السهم والكمية ومتوسط الشراء على الأقل'); return; }
+  if(!qty || !avg){ alert('من فضلك أدخل الكمية ومتوسط الشراء'); return; }
   stocks.push({id:Date.now(), name, qty, avg, cur, target});
   save('pf_stocks', stocks);
-  ['s_name','s_qty','s_avg','s_cur','s_target'].forEach(id=>document.getElementById(id).value='');
+  ['s_qty','s_avg','s_cur','s_target'].forEach(id=>document.getElementById(id).value='');
   renderAll();
 }
 function updateStockField(id, field, value){
