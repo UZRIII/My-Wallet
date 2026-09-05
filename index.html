@@ -164,7 +164,7 @@
   .field label{font-size:.78rem; color:var(--ink-dim);}
   .field input, .field select{
     background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
-    color:var(--ink); padding:8px 10px; font-family:inherit; min-width:110px;
+    color:var(--ink); padding:8px 10px; font-family:inherit; min-width:140px;
   }
   .field input:focus, .field select:focus{outline:1px solid var(--gold); border-color:var(--gold);}
   
@@ -258,13 +258,7 @@
     <div class="add-row">
       <div class="field">
         <label>اختر السهم</label>
-        <select id="s_name" onchange="onStockSelectChange()">
-          <option value="ORAS - أوراسكوم كونستراكشون">ORAS - أوراسكوم كونستراكشون</option>
-          <option value="ETEL - المصرية للاتصالات">ETEL - المصرية للاتصالات</option>
-          <option value="EGAL - مصر للألومنيوم">EGAL - مصر للألومنيوم</option>
-          <option value="ADIB - مصرف أبوظبي الإسلامي">ADIB - مصرف أبوظبي الإسلامي</option>
-          <option value="EIFH - إيبيكو للأدوية">EIFH - إيبيكو للأدوية</option>
-        </select>
+        <select id="s_name" onchange="onStockSelectChange()"></select>
       </div>
       <div class="field"><label>الكمية</label><input id="s_qty" type="number" placeholder="0"></div>
       <div class="field"><label>متوسط سعر الشراء</label><input id="s_avg" type="number" step="0.01" placeholder="0.00"></div>
@@ -368,7 +362,7 @@ function setTheme(name){
   if(name !== 'green') document.body.classList.add('theme-' + name);
   
   document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelector('.btn-' + name).classList.add('active');
+  document.querySelector('.btn-' + name)?.classList.add('active');
   
   localStorage.setItem('pf_theme', name);
   if(wealthChartInstance) updateChartThemeColors();
@@ -379,71 +373,115 @@ function initTheme(){
   setTheme(savedTheme);
 }
 
-// ---------- Stock Prices Dictionary & Ticker Map ----------
-const STOCK_PRICES = {
-  "ORAS - أوراسكوم كونستراكشون": 850.02,
-  "ETEL - المصرية للاتصالات": 115.99,
-  "EGAL - مصر للألومنيوم": 374.00,
-  "ADIB - مصرف أبوظبي الإسلامي": 52.75,
-  "EIFH - إيبيكو للأدوية": 129.70
-};
-
+// ---------- Stock Tickers & Names Dictionary ----------
 const STOCK_TICKERS = {
-  "ORAS - أوراسكوم كونستراكشون": "ORAS",
-  "ETEL - المصرية للاتصالات": "ETEL",
-  "EGAL - مصر للألومنيوم": "EGAL",
-  "ADIB - مصرف أبوظبي الإسلامي": "ADIB",
-  "EIFH - إيبيكو للأدوية": "PHAR"
+  "ATLC - التوفيق للتأجير التمويلي": "ATLC.CA",
+  "MBSC - مصر بني سويف للأسمنت": "MBSC.CA",
+  "MPCI - المنصورة للدواجن": "MPCI.CA",
+  "NINH - النيل للأدوية والصناعات الكيماوية": "NINH.CA",
+  "MICH - مصر لصناعة الكيماويات": "MICH.CA",
+  "EGAL - مصر للألومنيوم": "EGAL.CA",
+  "ABUK - أبوقير للأسمدة والصناعات الكيماوية": "ABUK.CA",
+  "ATQA - مصر الوطنية للصلب - عتاقة": "ATQA.CA",
+  "ISMA - الإسماعيلية مصر للدواجن": "ISMA.CA",
+  "EFID - ايديتا للصناعات الغذائية": "EFID.CA",
+  "ISMQ - الحديد والصلب للمناجم والمحاجر": "ISMQ.CA",
+  "CLHO - كليوباترا للمستشفيات": "CLHO.CA",
+  "ETRS - المصرية للنقل والخدمات اللوجستية (إيجيترانس)": "ETRS.CA",
+  "RUBX - روبكس العالمية لتصنيع البلاستيك": "RUBX.CA",
+  "CPCI - القاهرة للزيوت والصابون": "CPCI.CA",
+  "AMOC - الإسكندرية للزيوت المعدنية (أموك)": "AMOC.CA",
+  "EFIH - إي فاينانس للاستثمارات المالية والرقمية": "EFIH.CA",
+  "SUGR - الدلتا للسكر": "SUGR.CA",
+  "PHDC - بالم هيلز للتعمير": "PHDC.CA",
+  "POUL - القاهرة للدواجن": "POUL.CA",
+  "MASR - مدينة مصر للإسكان والتعمير": "MASR.CA",
+  "SWDY - السويدى إلكتريك": "SWDY.CA",
+  "ADIB - مصرف أبوظبي الإسلامي - مصر": "ADIB.CA",
+  "RMDA - العاشر من رمضان للصناعات الدوائية (رميدا)": "RMDA.CA",
+  "ISPH - ابن سينا فارما": "ISPH.CA",
+  "ORHD - أوراسكوم للتنمية مصر": "ORHD.CA",
+  "MCQE - مصر للأسمنت - قنا": "MCQE.CA",
+  "ORAS - أوراسكوم كونستراكشون PLC": "ORAS.CA",
+  "OCDI - السادس من أكتوبر للتنمية والاستثمار (سوديك)": "OCDI.CA",
+  "SAUD - بنك البركة مصر": "SAUD.CA",
+  "ORWE - النساجون الشرقيون": "ORWE.CA",
+  "FAIT - بنك فيصل الإسلامي المصري": "FAIT.CA",
+  "RACC - راية لخدمات مراكز الاتصالات": "RACC.CA",
+  "ZMID - زهراء المعادي للاستثمار والتعمير": "ZMID.CA",
+  "ETEL - المصرية للاتصالات": "ETEL.CA",
+  "ARCC - العربية للأسمنت": "ARCC.CA",
+  "TMGH - مجموعة طلعت مصطفى القابضة": "TMGH.CA",
+  "JUFO - جهينة للصناعات الغذائية": "JUFO.CA"
 };
 
-// ---------- Dynamic EGX Price Auto Fetcher ----------
+const STOCK_PRICES = {};
+
+function populateStockSelect() {
+  const select = document.getElementById('s_name');
+  select.innerHTML = '';
+  for (let name in STOCK_TICKERS) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+}
+
+// ---------- Multi-Source Dynamic Stock Fetcher (Yahoo API via CORS Proxies) ----------
 async function fetchStockPrice(ticker) {
-  const egxUrl = 'https://www.egx.com.eg/ar/prices.aspx';
-  const cache = JSON.parse(localStorage.getItem('pf_egx_prices') || '{}');
+  const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d`;
+  const cache = JSON.parse(localStorage.getItem('pf_stock_cache') || '{}');
 
+  // Attempt 1: AllOrigins Wrapper
   try {
-    const response = await fetch(egxUrl, {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'omit'
-    });
-    if (!response.ok) throw new Error('EGX HTTP ' + response.status);
-
-    const text = await response.text();
-    const code = ticker.toUpperCase();
-
-    // EGX may change its HTML layout, so try several flexible patterns.
-    const patterns = [
-      new RegExp(code + '[\\s\\S]{0,1200}?(?:سعر الإغلاق|الإغلاق|close|last)[^0-9]{0,100}([0-9]+(?:\\.[0-9]+)?)', 'i'),
-      new RegExp('(?:سعر الإغلاق|الإغلاق|close|last)[^0-9]{0,100}([0-9]+(?:\\.[0-9]+)?)[\\s\\S]{0,1200}?' + code, 'i'),
-      new RegExp(code + '[^0-9]{0,600}([0-9]+(?:\\.[0-9]+)?)', 'i')
-    ];
-
-    for (const p of patterns) {
-      const match = text.match(p);
-      if (match) {
-        const price = parseFloat(match[1]);
-        if (Number.isFinite(price) && price > 0) {
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+    if (res.ok) {
+      const wrapper = await res.json();
+      if (wrapper.contents) {
+        const data = JSON.parse(wrapper.contents);
+        const meta = data.chart?.result?.[0]?.meta;
+        const price = meta?.regularMarketPrice || meta?.chartPreviousClose;
+        if (price && price > 0) {
           cache[ticker] = price;
-          localStorage.setItem('pf_egx_prices', JSON.stringify(cache));
+          localStorage.setItem('pf_stock_cache', JSON.stringify(cache));
           return price;
         }
       }
     }
+  } catch (e) {}
 
-    throw new Error('لم يتم العثور على السعر في بيانات EGX');
-  } catch (e) {
-    console.warn(`تعذر جلب ${ticker} من EGX:`, e);
-    return cache[ticker] || STOCK_PRICES_BY_DEFAULT[ticker] || null;
-  }
-}
+  // Attempt 2: CodeTabs Proxy
+  try {
+    const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      const price = meta?.regularMarketPrice || meta?.chartPreviousClose;
+      if (price && price > 0) {
+        cache[ticker] = price;
+        localStorage.setItem('pf_stock_cache', JSON.stringify(cache));
+        return price;
+      }
+    }
+  } catch (e) {}
 
-const STOCK_PRICES_BY_DEFAULT = {
-  "ORAS": 850.02,
-  "ETEL": 115.99,
-  "EGAL": 374.00,
-  "ADIB": 52.75,
-  "PHAR": 129.70
+  // Attempt 3: ThingProxy
+  try {
+    const res = await fetch(`https://thingproxy.freeboard.io/fetch/${targetUrl}`);
+    if (res.ok) {
+      const data = await res.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      const price = meta?.regularMarketPrice || meta?.chartPreviousClose;
+      if (price && price > 0) {
+        cache[ticker] = price;
+        localStorage.setItem('pf_stock_cache', JSON.stringify(cache));
+        return price;
+      }
+    }
+  } catch (e) {}
+
+  return cache[ticker] || null;
 }
 
 async function updateStocksFromEGX() {
@@ -472,10 +510,10 @@ async function updateStocksFromEGX() {
 
     if(statusEl) {
         if (updatedCount > 0) {
-            statusEl.textContent = `تم تحديث أسعار الأسهم بنجاح! ✅`;
+            statusEl.textContent = `تم تحديث أسعار ${updatedCount} سهم بنجاح! ✅`;
             statusEl.className = 'status-line ok';
         } else {
-            statusEl.textContent = 'تعذر تحديث الأسعار تلقائياً، تم الاعتماد على الأسعار المحلية.';
+            statusEl.textContent = 'تعذر التحديث المباشر حالياً، تم استخدام آخر أسعار مسجلة.';
             statusEl.className = 'status-line err';
         }
     }
@@ -484,7 +522,7 @@ async function updateStocksFromEGX() {
 function onStockSelectChange(){
   const selectedStock = document.getElementById('s_name').value;
   const price = STOCK_PRICES[selectedStock] || 0;
-  document.getElementById('s_cur').value = price.toFixed(2);
+  document.getElementById('s_cur').value = price ? price.toFixed(2) : '0.00';
 }
 
 // ---------- Storage ----------
@@ -647,7 +685,6 @@ function addStock(){
   
   const existingStockIndex = stocks.findIndex(s => s.name === name);
   if(existingStockIndex >= 0) {
-      // احتساب متوسط الشراء الموزون أوتوماتيكياً عند إضافة أسهُم جديدة بنفس الاسم
       const oldQty = stocks[existingStockIndex].qty;
       const oldAvg = stocks[existingStockIndex].avg;
       const totalQty = oldQty + qty;
@@ -700,7 +737,7 @@ function futureValue(principal, rate, years){
   return principal * Math.pow(1 + rate/100, years);
 }
 
-// ---------- Gold Section Management (With Resilient Fallbacks) ----------
+// ---------- Gold Section Management ----------
 function initGoldInputs(){
   document.getElementById('g24_qty').value = goldData.g24_qty || '';
   document.getElementById('g24_price').value = goldData.g24_price || '';
@@ -728,16 +765,14 @@ async function updateGoldPrices(){
   statusEl.className = 'status-line';
 
   const proxies = [
-      url => url, // محاولة جلب مباشرة أولاً
-      url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+      url => url,
+      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
   ];
 
   try {
     let xauUsdPerOunce = null;
 
-    // جلب سعر أونصة الذهب عالمياً بالدولار
     for (const getProxyUrl of proxies) {
         try {
             const res = await fetch(getProxyUrl('https://api.gold-api.com/price/XAU'));
@@ -753,7 +788,6 @@ async function updateGoldPrices(){
 
     if (!xauUsdPerOunce) throw new Error('تعذر جلب سعر الذهب عالمياً');
 
-    // جلب سعر صرف الدولار مقابل الجنيه المصري
     let usdToEgp = null;
     for (const getProxyUrl of proxies) {
         try {
@@ -770,7 +804,6 @@ async function updateGoldPrices(){
 
     if (!usdToEgp) throw new Error('تعذر جلب سعر صرف الجنيه المصري');
 
-    // الحسابات المباشرة لعيار 24 وعيار 21
     const pricePerGram24Egp = (xauUsdPerOunce / 31.1034768) * usdToEgp;
     const pricePerGram21Egp = pricePerGram24Egp * (21 / 24);
 
@@ -871,14 +904,14 @@ function renderAll(){
 // Initializing on Page Load
 window.onload = function() {
   initTheme();
+  populateStockSelect();
   initGoldInputs();
   renderAll();
   onStockSelectChange();
   
-  // تحديث تلقائي من EGX فور فتح الصفحة
+  // تحديث أوتوماتيكي مباشر للأسهم عند فتح الصفحة
   updateStocksFromEGX();
 };
-
 </script>
 </body>
 </html>
